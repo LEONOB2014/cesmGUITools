@@ -65,7 +65,7 @@ class GlobalData(object):
         
         self.lons = np.linspace(-179.5,179.5,self.raw_data.shape[1])
         self.lats = np.linspace(89.5,-89.5,self.raw_data.shape[0])
-        
+                
     
     def global_index_to_ij(self, idx):
         """ Maps the scalar index of each element into it's (i,j) index. """
@@ -104,6 +104,10 @@ class GeoEditor(QMainWindow):
         
         self.dw = DataWindow(dwy, dwx)
         self.dw.update(self.alldata[0:dwy, 0:dwx].flatten(), self.alldata.ij_to_global_index(0,0))
+        
+        self.maps = mpl.cm.datad.keys()
+        self.maps.sort()
+        
         
         self.create_menu()
         self.create_main_frame()
@@ -162,7 +166,13 @@ class GeoEditor(QMainWindow):
         self.pixel_slider.setTickPosition(QSlider.TicksBothSides)
         self.connect(self.pixel_slider, SIGNAL('valueChanged(int)'), self.on_draw)
         
-            
+        cmap_label = QLabel('Colormap:')
+        self.colormaps = QComboBox(self)
+        # maps = mpl.cm.datad.keys()
+        # maps.sort()
+        self.colormaps.addItems(self.maps)
+        self.colormaps.setCurrentIndex(self.maps.index('RdBu'))
+        self.connect(self.colormaps, SIGNAL("currentIndexChanged(int)"), self.on_draw)
         
         vbox = QVBoxLayout()
         vbox.addWidget(self.canvas)
@@ -174,6 +184,9 @@ class GeoEditor(QMainWindow):
             w.setFixedWidth(150)
             vbox2.addWidget(w)
             vbox2.setAlignment(w, Qt.AlignTop)
+        vbox2.addStretch(1)
+        vbox2.addWidget(cmap_label)
+        vbox2.addWidget(self.colormaps)
         vbox2.addStretch(1)
         for w in [pixel_slider_label, self.pixel_slider]:
             vbox2.addWidget(w)
@@ -212,8 +225,9 @@ class GeoEditor(QMainWindow):
         self.axes.clear()
         
         # self.axes.scatter(self.alldata.x, self.alldata.y, s=5, c=self.alldata.fdata, marker='s', cmap=mpl.cm.RdBu, edgecolor=None, linewidth=0, picker=1)
+        cmap = mpl.cm.get_cmap(self.maps[self.colormaps.currentIndex()])
         self.axes.scatter(self.dw.x, self.dw.y, s=self.pixel_slider.value(), 
-                          c=self.dw.data, marker='s', cmap=mpl.cm.RdBu, 
+                          c=self.dw.data, marker='s', cmap=cmap, 
                           edgecolor=None, linewidth=0, picker=3)
         # self.axes.set_xlim([-179.5,179.5])
         
