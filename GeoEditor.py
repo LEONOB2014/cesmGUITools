@@ -21,6 +21,9 @@ from matplotlib.backends.backend_qt4agg import NavigationToolbar2QT as Navigatio
 
 
 class DataWindow(object):
+    """
+    A view of the global data
+    """
     def __init__(self, m, n):
         self.data = None
         self.nrows= m
@@ -34,37 +37,46 @@ class DataWindow(object):
 class GlobalData(object):
     def __init__(self, fname):
         self.raw_data = np.loadtxt(fname)
-        self.nrows, self.ncols = self.data.shape
+        self.nrows, self.ncols = self.raw_data.shape
         self.fdata = self.raw_data.flatten()
+        
+        lons = np.linspace(-179.5,179.5,self.raw_data.shape[1])
+        lats = np.linspace(89.5,-89.5,self.raw_data.shape[0])
+        self.x, self.y = np.meshgrid(lons, lats)
+        
+        self.original_data = np.copy(self.raw_data)
+        
     
     def global_index_to_ij(self, idx):
         return (idx/self.ncols, idx%self.ncols)
     
     def if_to_global_index(self, i, j):
         return i*self.ncols + j
-
+    
+    def __getitem__(self, i):
+        if isinstance(i, tuple):
+            return self.raw_data[i]
+        else:
+            return self.fdata[i]
+    
+    def __setitem__(self, i, val):
+        if isinstance(i, tuple):
+            self.raw_data[i] = val
+        else:
+            self.fdata[i] = val
+    
+    
+    
 
 class MainWindow(QMainWindow):
     def __init__(self, parent=None):
         super(MainWindow, self).__init__(parent)
         self.setWindowTitle('PyQt & matplotlib demo: Data plotting')
-
-        # self.data = DataHolder()
-        # self.series_list_model = QStandardItemModel()
         
-        # Loading data
-        self.raw_data = np.loadtxt("data.txt")
-        
-        lons = np.linspace(-179.5,179.5,self.raw_data.shape[1])
-        lats = np.linspace(89.5,-89.5,self.raw_data.shape[0])
-        x, y = np.meshgrid(lons, lats)
-        self.data = self.raw_data.flatten()
+        self.alldata = GlobalData("data.txt")
         
         self.dw = DataWindow(20,20)
-        self.dw.update(self.raw_data[0:20,0:20].flatten())
-        
-        self.x = x.flatten()
-        self.y = y.flatten()
+        # self.dw.update(self.raw_data[0:20,0:20].flatten())
         
         self.create_menu()
         self.create_main_frame()
@@ -78,13 +90,13 @@ class MainWindow(QMainWindow):
     
     def create_main_frame(self):
         self.main_frame = QWidget()
-        self.main_frame.setMinimumSize(QSize(1280, 800))
+        self.main_frame.setMinimumSize(QSize(800, 600))
         
         # Create the mpl Figure and FigCanvas objects. 
         # 5x4 inches, 100 dots-per-inch
         #
         self.dpi = 100
-        self.fig = plt.Figure((18.0, 10.0), dpi=self.dpi)
+        self.fig = plt.Figure((6.5, 5), dpi=self.dpi)
         self.canvas = FigureCanvas(self.fig)
         self.canvas.setParent(self.main_frame)
         
@@ -158,7 +170,7 @@ class MainWindow(QMainWindow):
         """
         self.axes.clear()
         
-        self.axes.scatter(self.x, self.y, s=5, c=self.data, marker='s', cmap=mpl.cm.RdBu, edgecolor=None, linewidth=0, picker=1)
+        self.axes.scatter(self.alldata.x, self.alldata.y, s=5, c=self.alldata.fdata, marker='s', cmap=mpl.cm.RdBu, edgecolor=None, linewidth=0, picker=1)
         # plt.colorbar(mappable)
         self.axes.set_xlim([-179.5,179.5])
         self.axes.set_ylim([-89.5,89.5])
