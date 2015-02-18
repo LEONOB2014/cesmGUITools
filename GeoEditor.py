@@ -150,6 +150,15 @@ class GeoEditor(QMainWindow):
         self.latdisplay  = QLabel("Latitude   : ")
         self.londisplay  = QLabel("Longitude: ")
         self.valdisplay  = QLabel("Value       : ")
+        
+        pixel_slider_label = QLabel('Pixel size:')
+        self.pixel_slider = QSlider(Qt.Horizontal)
+        self.pixel_slider.setRange(1, 100)
+        self.pixel_slider.setValue(25)
+        self.pixel_slider.setTracking(True)
+        self.pixel_slider.setTickPosition(QSlider.TicksBothSides)
+        self.connect(self.pixel_slider, SIGNAL('valueChanged(int)'), self.on_draw)
+        
             
         
         vbox = QVBoxLayout()
@@ -163,6 +172,10 @@ class GeoEditor(QMainWindow):
             vbox2.addWidget(w)
             vbox2.setAlignment(w, Qt.AlignTop)
         vbox2.addStretch(1)
+        for w in [pixel_slider_label, self.pixel_slider]:
+            vbox2.addWidget(w)
+            vbox2.setAlignment(w, Qt.AlignBottom)
+            
         
         hbox = QHBoxLayout()
         hbox.addLayout(vbox)
@@ -196,7 +209,9 @@ class GeoEditor(QMainWindow):
         self.axes.clear()
         
         # self.axes.scatter(self.alldata.x, self.alldata.y, s=5, c=self.alldata.fdata, marker='s', cmap=mpl.cm.RdBu, edgecolor=None, linewidth=0, picker=1)
-        self.axes.scatter(self.dw.x, self.dw.y, s=25, c=self.dw.data, marker='s', cmap=mpl.cm.RdBu, edgecolor=None, linewidth=0, picker=3)
+        self.axes.scatter(self.dw.x, self.dw.y, s=self.pixel_slider.value(), 
+                          c=self.dw.data, marker='s', cmap=mpl.cm.RdBu, 
+                          edgecolor=None, linewidth=0, picker=3)
         # self.axes.set_xlim([-179.5,179.5])
         
         # Setting the axes limits. This helps in setting the right orientation of the plot
