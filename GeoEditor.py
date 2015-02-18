@@ -29,28 +29,50 @@ class DataWindow(object):
         self.nrows= m
         self.ncols= n
         self.si   = None  # the global index of the first element 
+        
+        self.x, self.y = np.meshgrid(np.arange(self.ncols), np.arange(self.nrows))
+        self.x = self.x.flatten()
+        self.y = self.y.flatten()
     
-    def update(self, vals):
+    def update(self, vals, si):
         self.data = np.copy(vals)
+        self.si = si
+        
+    def dw_index_to_ij(self, idx):
+        return (idx/self.ncols, idx%self.ncols)
+    
+    def ij_to_dw_index(self, i, j):
+        """Maps the (i,j) index of each element into a unique scalar index. """
+        return i*self.ncols + j
+    
+    def dw_ij2_global(self, i, j):
+        """ Converts an i,j index into the data window into an index for the
+        same element into the global data. """
+        return (self.si/self.ncols + i, self.si%self.ncols + j)
 
 
 class GlobalData(object):
+    """
+    This class contains the global, i.e. the full data for the program. It also
+    contains the lat/lon coordinates for the data and a number of helper functions
+    to help convert between 2D and 1D indexing of the data. 
+    """
     def __init__(self, fname):
         self.raw_data = np.loadtxt(fname)
+        self.original_data = np.copy(self.raw_data)
         self.nrows, self.ncols = self.raw_data.shape
         self.fdata = self.raw_data.flatten()
         
-        lons = np.linspace(-179.5,179.5,self.raw_data.shape[1])
-        lats = np.linspace(89.5,-89.5,self.raw_data.shape[0])
-        self.x, self.y = np.meshgrid(lons, lats)
-        
-        self.original_data = np.copy(self.raw_data)
+        self.lons = np.linspace(-179.5,179.5,self.raw_data.shape[1])
+        self.lats = np.linspace(89.5,-89.5,self.raw_data.shape[0])
         
     
     def global_index_to_ij(self, idx):
+        """ Maps the scalar index of each element into it's (i,j) index. """
         return (idx/self.ncols, idx%self.ncols)
     
-    def if_to_global_index(self, i, j):
+    def ij_to_global_index(self, i, j):
+        """Maps the (i,j) index of each element into a unique scalar index. """
         return i*self.ncols + j
     
     def __getitem__(self, i):
@@ -68,15 +90,20 @@ class GlobalData(object):
     
     
 
-class MainWindow(QMainWindow):
-    def __init__(self, parent=None):
-        super(MainWindow, self).__init__(parent)
-        self.setWindowTitle('PyQt & matplotlib demo: Data plotting')
+class GeoEditor(QMainWindow):
+    def __init__(self, parent=None, dwx=160, dwy=160):
+        """
+        ARGUMENTS:
+            dwx, dwy - size of the DataWindow in number of array elements
+        """
+        super(GeoEditor, self).__init__(parent)
+        self.setWindowTitle('GeoEditor (c) Deepak Chandan')
         
         self.alldata = GlobalData("data.txt")
         
-        self.dw = DataWindow(20,20)
-        # self.dw.update(self.raw_data[0:20,0:20].flatten())
+        
+        self.dw = DataWindow(dwy, dwx)
+        self.dw.update(self.alldata[0:dwy, 0:dwx].flatten(), self.alldata.ij_to_global_index(0,0))
         
         self.create_menu()
         self.create_main_frame()
@@ -114,22 +141,20 @@ class MainWindow(QMainWindow):
         
         # Create the navigation toolbar, tied to the canvas
         #
-        self.mpl_toolbar = NavigationToolbar(self.canvas, self.main_frame)
+        # self.mpl_toolbar = NavigationToolbar(self.canvas, self.main_frame)
         
         # Other GUI controls
 
 
-        self.infodisplay = QLabel("Pixel &information:")
-        self.latdisplay  = QLabel("Lat: ")
-        self.londisplay  = QLabel("Lon: ")
-        self.valdisplay  = QLabel("Val: ")
-
-        # Layout with box sizers
-    
+        self.infodisplay = QLabel("Pixel Information:")
+        self.latdisplay  = QLabel("Latitude   : ")
+        self.londisplay  = QLabel("Longitude: ")
+        self.valdisplay  = QLabel("Value       : ")
+            
         
         vbox = QVBoxLayout()
         vbox.addWidget(self.canvas)
-        vbox.addWidget(self.mpl_toolbar)
+        # vbox.addWidget(self.mpl_toolbar)
         
         
         vbox2 = QVBoxLayout()
@@ -170,27 +195,41 @@ class MainWindow(QMainWindow):
         """
         self.axes.clear()
         
-        self.axes.scatter(self.alldata.x, self.alldata.y, s=5, c=self.alldata.fdata, marker='s', cmap=mpl.cm.RdBu, edgecolor=None, linewidth=0, picker=1)
-        # plt.colorbar(mappable)
-        self.axes.set_xlim([-179.5,179.5])
-        self.axes.set_ylim([-89.5,89.5])
+        # self.axes.scatter(self.alldata.x, self.alldata.y, s=5, c=self.alldata.fdata, marker='s', cmap=mpl.cm.RdBu, edgecolor=None, linewidth=0, picker=1)
+        self.axes.scatter(self.dw.x, self.dw.y, s=25, c=self.dw.data, marker='s', cmap=mpl.cm.RdBu, edgecolor=None, linewidth=0, picker=3)
+        # self.axes.set_xlim([-179.5,179.5])
+        
+        # Setting the axes limits. This helps in setting the right orientation of the plot
+        # and in clontrolling how much extra space we want around the scatter plot.
+        tmp1 = self.dw.nrows
+        tmp2 = self.dw.ncols
+        # I am putting 4% space around the scatter plot
+        self.axes.set_ylim([int(tmp1*1.04), 0 - int(tmp1*0.04)])
+        self.axes.set_xlim([0 - int(tmp2*0.04), int(tmp2*1.04)])
         self.canvas.draw()
         self.fig.tight_layout()
     
     
     def on_pick(self, event):
-        # The event received here is of the type
-        # matplotlib.backend_bases.PickEvent
-        #
-        # It carries lots of information, of which we're using
-        # only a small amount here.
-        # 
-        # box_points = event.artist.get_bbox().get_points()
-        
         mevent = event.mouseevent
-        # print mevent.xdata, mevent.ydata
-        print event.ind
-        self.latdisplay.setText("Hello!")
+        
+        # If we've picked up more than one point then we need to try again!
+        if len(event.ind) > 1:
+            self.statusBar().showMessage("!!! More than one points picked. Try again !!!")
+            self.latdisplay.setText("Latitude   : ")
+            self.londisplay.setText("Longitude: ")
+            self.valdisplay.setText("Value       : ")
+        else:
+            self.statusBar().showMessage("Selected one point")
+            # dw_index is the "local" index in the data window. 
+            dw_index = event.ind[0]
+            dw_i, dw_j = self.dw.dw_index_to_ij(dw_index)
+            # First we need to map the local index into the global index
+            gb_i, gb_j = self.dw.dw_ij2_global(dw_i, dw_j)
+            print dw_index, dw_i, dw_j, gb_i, gb_j
+            self.latdisplay.setText("Latitude   : {0}".format(self.alldata.lats[gb_i]))
+            self.londisplay.setText("Longitude: {0}".format(self.alldata.lons[gb_j]))
+            self.valdisplay.setText("Value       : {0}".format(self.alldata[gb_i, gb_j]))
     
     
     def on_about(self):
@@ -239,7 +278,7 @@ class MainWindow(QMainWindow):
     
 def main():
     app = QApplication(sys.argv)
-    mw = MainWindow()
+    mw = GeoEditor(dwx=50,dwy=40)
     mw.show()
     app.exec_()
 
