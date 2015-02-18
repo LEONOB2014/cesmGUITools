@@ -20,6 +20,30 @@ from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt4agg import NavigationToolbar2QT as NavigationToolbar
 
 
+class DataWindow(object):
+    def __init__(self, m, n):
+        self.data = None
+        self.nrows= m
+        self.ncols= n
+        self.si   = None  # the global index of the first element 
+    
+    def update(self, vals):
+        self.data = np.copy(vals)
+
+
+class GlobalData(object):
+    def __init__(self, fname):
+        self.raw_data = np.loadtxt(fname)
+        self.nrows, self.ncols = self.data.shape
+        self.fdata = self.raw_data.flatten()
+    
+    def global_index_to_ij(self, idx):
+        return (idx/self.ncols, idx%self.ncols)
+    
+    def if_to_global_index(self, i, j):
+        return i*self.ncols + j
+
+
 class MainWindow(QMainWindow):
     def __init__(self, parent=None):
         super(MainWindow, self).__init__(parent)
@@ -29,11 +53,15 @@ class MainWindow(QMainWindow):
         # self.series_list_model = QStandardItemModel()
         
         # Loading data
-        self.data = np.loadtxt("data.txt")
-        lons = np.linspace(-179.5,179.5,self.data.shape[1])
-        lats = np.linspace(89.5,-89.5,self.data.shape[0])
+        self.raw_data = np.loadtxt("data.txt")
+        
+        lons = np.linspace(-179.5,179.5,self.raw_data.shape[1])
+        lats = np.linspace(89.5,-89.5,self.raw_data.shape[0])
         x, y = np.meshgrid(lons, lats)
-        self.data = self.data.flatten()
+        self.data = self.raw_data.flatten()
+        
+        self.dw = DataWindow(20,20)
+        self.dw.update(self.raw_data[0:20,0:20].flatten())
         
         self.x = x.flatten()
         self.y = y.flatten()
@@ -78,18 +106,6 @@ class MainWindow(QMainWindow):
         
         # Other GUI controls
 
-        # self.textbox = QLineEdit()
-        # self.textbox.setMinimumWidth(200)
-        # self.connect(self.textbox, SIGNAL('editingFinished ()'), self.on_draw)
-        
-        slider_label = QLabel('Scatter marker size:')
-        self.slider = QSlider(Qt.Horizontal)
-        self.slider.setRange(1, 100)
-        self.slider.setValue(5)
-        self.slider.setTracking(True)
-        self.slider.setTickPosition(QSlider.TicksBothSides)
-        self.connect(self.slider, SIGNAL('valueChanged(int)'), self.on_draw)
-        
 
         self.infodisplay = QLabel("Pixel &information:")
         self.latdisplay  = QLabel("Lat: ")
@@ -105,8 +121,7 @@ class MainWindow(QMainWindow):
         
         
         vbox2 = QVBoxLayout()
-        # vbox2.addWidget(self.draw_button)
-        for w in [self.infodisplay, self.latdisplay, self.londisplay, self.valdisplay, slider_label, self.slider]:
+        for w in [self.infodisplay, self.latdisplay, self.londisplay, self.valdisplay]:
             w.setFixedWidth(150)
             vbox2.addWidget(w)
             vbox2.setAlignment(w, Qt.AlignTop)
@@ -143,7 +158,7 @@ class MainWindow(QMainWindow):
         """
         self.axes.clear()
         
-        self.axes.scatter(self.x, self.y, s=self.slider.value(), c=self.data, marker='s', cmap=mpl.cm.RdBu, edgecolor=None, linewidth=0, picker=1)
+        self.axes.scatter(self.x, self.y, s=5, c=self.data, marker='s', cmap=mpl.cm.RdBu, edgecolor=None, linewidth=0, picker=1)
         # plt.colorbar(mappable)
         self.axes.set_xlim([-179.5,179.5])
         self.axes.set_ylim([-89.5,89.5])
