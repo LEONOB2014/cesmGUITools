@@ -133,7 +133,10 @@ class GeoEditor(QMainWindow):
         # work.
         #
         self.axes = self.fig.add_subplot(111)
-        
+        # Turning off the axes ticks to maximize space. Also the labels were meaningless
+        # anyway because they were not representing the actual lat/lons. 
+        self.axes.get_xaxis().set_visible(False)
+        self.axes.get_yaxis().set_visible(False)
         
         # # Bind the 'pick' event for clicking on one of the bars
         # #
