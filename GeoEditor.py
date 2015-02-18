@@ -108,10 +108,15 @@ class GeoEditor(QMainWindow):
         self.maps = mpl.cm.datad.keys()
         self.maps.sort()
         
+        self.cursor = None
+        self.cursorx = 0
+        self.cursory = 0
+        
         
         self.create_menu()
         self.create_main_frame()
         self.on_draw()
+        # self.move_cursor()
         self.statusBar().showMessage('GeoEditor 2015')
         
         #
@@ -145,6 +150,7 @@ class GeoEditor(QMainWindow):
         # # Bind the 'pick' event for clicking on one of the bars
         # #
         self.canvas.mpl_connect('pick_event', self.on_pick)
+        self.canvas.mpl_connect('key_press_event', self.draw_cursor)
         
         # Create the navigation toolbar, tied to the canvas
         #
@@ -199,6 +205,7 @@ class GeoEditor(QMainWindow):
         
         self.main_frame.setLayout(hbox)
         self.setCentralWidget(self.main_frame)
+        self.canvas.setFocus()
     
     
     def create_action(  self, text, slot=None, shortcut=None, 
@@ -240,6 +247,38 @@ class GeoEditor(QMainWindow):
         self.axes.set_xlim([0 - int(tmp2*0.04), int(tmp2*1.04)])
         self.canvas.draw()
         self.fig.tight_layout()
+        self.draw_cursor(noremove=True)
+    
+    
+    def draw_cursor(self, event=None, noremove=False):
+        """ noremove - If True, does not make a call to remove the previous cursor. """
+        if event is not None: 
+            # We are only doin this when there is an event, i.e. we have reached this function
+            # not from a manual call but the triggering of a function
+            key = event.key
+            # Changing the position of the cursor, while making sure that the new position
+            # is not outside the boundary of the datawindow. 
+            if key == "up":
+                self.cursory = max(0, self.cursory - 1)
+            elif key == "down":
+                self.cursory = min(self.dw.nrows-1, self.cursory + 1)
+            elif key == "left":
+                self.cursorx = max(0, self.cursorx - 1)
+            elif key == "right":
+                self.cursorx = min(self.dw.ncols-1, self.cursorx + 1)
+            else:
+                return
+        
+        if self.cursor and (not noremove): self.cursor.remove()
+        self.cursor = self.axes.scatter(self.cursorx, self.cursory, s=self.pixel_slider.value(), marker='s', 
+                      edgecolor="k", facecolor=None, linewidth=1)
+        
+        gb_i, gb_j = self.dw.dw_ij2_global(self.cursory, self.cursorx)
+        self.latdisplay.setText("Latitude   : {0}".format(self.alldata.lats[gb_i]))
+        self.londisplay.setText("Longitude: {0}".format(self.alldata.lons[gb_j]))
+        self.valdisplay.setText("Value       : {0}".format(self.alldata[gb_i, gb_j]))
+        
+        self.canvas.draw()
     
     
     def on_pick(self, event):
