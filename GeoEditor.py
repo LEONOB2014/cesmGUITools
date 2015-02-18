@@ -81,6 +81,15 @@ class MainWindow(QMainWindow):
         # self.textbox = QLineEdit()
         # self.textbox.setMinimumWidth(200)
         # self.connect(self.textbox, SIGNAL('editingFinished ()'), self.on_draw)
+        
+        slider_label = QLabel('Scatter marker size:')
+        self.slider = QSlider(Qt.Horizontal)
+        self.slider.setRange(1, 100)
+        self.slider.setValue(5)
+        self.slider.setTracking(True)
+        self.slider.setTickPosition(QSlider.TicksBothSides)
+        self.connect(self.slider, SIGNAL('valueChanged(int)'), self.on_draw)
+        
 
         self.infodisplay = QLabel("Pixel &information:")
         self.latdisplay  = QLabel("Lat: ")
@@ -97,7 +106,7 @@ class MainWindow(QMainWindow):
         
         vbox2 = QVBoxLayout()
         # vbox2.addWidget(self.draw_button)
-        for w in [self.infodisplay, self.latdisplay, self.londisplay, self.valdisplay]:
+        for w in [self.infodisplay, self.latdisplay, self.londisplay, self.valdisplay, slider_label, self.slider]:
             w.setFixedWidth(150)
             vbox2.addWidget(w)
             vbox2.setAlignment(w, Qt.AlignTop)
@@ -134,7 +143,7 @@ class MainWindow(QMainWindow):
         """
         self.axes.clear()
         
-        self.axes.scatter(self.x, self.y, s=5, c=self.data, marker='s', cmap=mpl.cm.RdBu, edgecolor=None, linewidth=0, picker=1)
+        self.axes.scatter(self.x, self.y, s=self.slider.value(), c=self.data, marker='s', cmap=mpl.cm.RdBu, edgecolor=None, linewidth=0, picker=1)
         # plt.colorbar(mappable)
         self.axes.set_xlim([-179.5,179.5])
         self.axes.set_ylim([-89.5,89.5])
@@ -155,9 +164,6 @@ class MainWindow(QMainWindow):
         # print mevent.xdata, mevent.ydata
         print event.ind
         self.latdisplay.setText("Hello!")
-        # msg = "You've clicked on a bar with coords:\n %s" % event.xdata
-        
-        # QMessageBox.information(self, "Click!", msg)
     
     
     def on_about(self):
