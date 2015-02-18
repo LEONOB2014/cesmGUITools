@@ -41,7 +41,8 @@ class MainWindow(QMainWindow):
         self.create_menu()
         self.create_main_frame()
         self.on_draw()
-        # self.create_status_bar()
+        self.statusBar().showMessage('GeoEditor 2015')
+        
         #
         # self.update_ui()
         # self.on_show()
@@ -77,41 +78,36 @@ class MainWindow(QMainWindow):
         
         # Other GUI controls
 
-        self.textbox = QLineEdit()
-        self.textbox.setMinimumWidth(200)
-        self.connect(self.textbox, SIGNAL('editingFinished ()'), self.on_draw)
+        # self.textbox = QLineEdit()
+        # self.textbox.setMinimumWidth(200)
+        # self.connect(self.textbox, SIGNAL('editingFinished ()'), self.on_draw)
 
-        self.draw_button = QPushButton("&Draw")
-        self.connect(self.draw_button, SIGNAL('clicked()'), self.on_draw)
-
-        self.grid_cb = QCheckBox("Show &Grid")
-        self.grid_cb.setChecked(False)
-        self.connect(self.grid_cb, SIGNAL('stateChanged(int)'), self.on_draw)
-
-        slider_label = QLabel('Bar width (%):')
-        self.slider = QSlider(Qt.Horizontal)
-        self.slider.setRange(1, 100)
-        self.slider.setValue(20)
-        self.slider.setTracking(True)
-        self.slider.setTickPosition(QSlider.TicksBothSides)
-        self.connect(self.slider, SIGNAL('valueChanged(int)'), self.on_draw)
-
+        self.infodisplay = QLabel("Pixel &information:")
+        self.latdisplay  = QLabel("Lat: ")
+        self.londisplay  = QLabel("Lon: ")
+        self.valdisplay  = QLabel("Val: ")
 
         # Layout with box sizers
-        # 
-        # hbox = QHBoxLayout()
-        
-        # for w in [  self.textbox, self.draw_button, self.grid_cb,
-        #             slider_label, self.slider]:
-        #     hbox.addWidget(w)
-        #     hbox.setAlignment(w, Qt.AlignVCenter)
+    
         
         vbox = QVBoxLayout()
         vbox.addWidget(self.canvas)
         vbox.addWidget(self.mpl_toolbar)
-        # vbox.addLayout(hbox)
         
-        self.main_frame.setLayout(vbox)
+        
+        vbox2 = QVBoxLayout()
+        # vbox2.addWidget(self.draw_button)
+        for w in [self.infodisplay, self.latdisplay, self.londisplay, self.valdisplay]:
+            w.setFixedWidth(150)
+            vbox2.addWidget(w)
+            vbox2.setAlignment(w, Qt.AlignTop)
+        vbox2.addStretch(1)
+        
+        hbox = QHBoxLayout()
+        hbox.addLayout(vbox)
+        hbox.addLayout(vbox2)
+        
+        self.main_frame.setLayout(hbox)
         self.setCentralWidget(self.main_frame)
     
     
@@ -140,7 +136,10 @@ class MainWindow(QMainWindow):
         
         self.axes.scatter(self.x, self.y, s=5, c=self.data, marker='s', cmap=mpl.cm.RdBu, edgecolor=None, linewidth=0, picker=1)
         # plt.colorbar(mappable)
+        self.axes.set_xlim([-179.5,179.5])
+        self.axes.set_ylim([-89.5,89.5])
         self.canvas.draw()
+        self.fig.tight_layout()
     
     
     def on_pick(self, event):
@@ -155,6 +154,7 @@ class MainWindow(QMainWindow):
         mevent = event.mouseevent
         # print mevent.xdata, mevent.ydata
         print event.ind
+        self.latdisplay.setText("Hello!")
         # msg = "You've clicked on a bar with coords:\n %s" % event.xdata
         
         # QMessageBox.information(self, "Click!", msg)
