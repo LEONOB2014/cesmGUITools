@@ -19,8 +19,24 @@ from matplotlib import pylab as plt
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt4agg import NavigationToolbar2QT as NavigationToolbar
 
+mpl.rc('axes',edgecolor='w')
 
-class DataWindow(object):
+class Data(object):
+    def __init__(self):
+        self.ncols = None
+        self.nrows = None
+    
+    def index_to_ij(self, idx):
+        """ Maps the scalar index of each element into it's (i,j) index. """
+        return (idx/self.ncols, idx%self.ncols)
+    
+    def ij_to_index(self, i, j):
+        """ Maps the (i,j) index of each element into a unique scalar index. """
+        return i*self.ncols + j
+    
+
+
+class DataWindow(Data):
     """
     A view of the global data
     """
@@ -38,20 +54,13 @@ class DataWindow(object):
         self.data = np.copy(vals)
         self.si = si
         
-    def dw_index_to_ij(self, idx):
-        return (idx/self.ncols, idx%self.ncols)
-    
-    def ij_to_dw_index(self, i, j):
-        """Maps the (i,j) index of each element into a unique scalar index. """
-        return i*self.ncols + j
-    
     def dw_ij2_global(self, i, j):
         """ Converts an i,j index into the data window into an index for the
         same element into the global data. """
         return (self.si/self.ncols + i, self.si%self.ncols + j)
 
 
-class GlobalData(object):
+class GlobalData(Data):
     """
     This class contains the global, i.e. the full data for the program. It also
     contains the lat/lon coordinates for the data and a number of helper functions
@@ -66,15 +75,6 @@ class GlobalData(object):
         self.lons = np.linspace(-179.5,179.5,self.raw_data.shape[1])
         self.lats = np.linspace(89.5,-89.5,self.raw_data.shape[0])
                 
-    
-    def global_index_to_ij(self, idx):
-        """ Maps the scalar index of each element into it's (i,j) index. """
-        return (idx/self.ncols, idx%self.ncols)
-    
-    def ij_to_global_index(self, i, j):
-        """Maps the (i,j) index of each element into a unique scalar index. """
-        return i*self.ncols + j
-    
     def __getitem__(self, i):
         if isinstance(i, tuple):
             return self.raw_data[i]
@@ -99,14 +99,13 @@ class GeoEditor(QMainWindow):
         super(GeoEditor, self).__init__(parent)
         self.setWindowTitle('GeoEditor (c) Deepak Chandan')
         
-        self.alldata = GlobalData("data.txt")
-        
-        
+        self.gd = GlobalData("data.txt")
         self.dw = DataWindow(dwy, dwx)
-        self.dw.update(self.alldata[0:dwy, 0:dwx].flatten(), self.alldata.ij_to_global_index(0,0))
+        # Set the initial data to the DataWindow class
+        self.dw.update(self.gd[0:dwy, 0:dwx].flatten(), self.gd.ij_to_index(0,0))
         
-        self.maps = mpl.cm.datad.keys()
-        self.maps.sort()
+        self.maps = mpl.cm.datad.keys()  # The names of colormaps available
+        self.maps.sort() # Sorting them alphabetically for ease of use
         
         self.cursor = None
         self.cursorx = 0
@@ -120,7 +119,6 @@ class GeoEditor(QMainWindow):
     
     
     def keyPressEvent(self, e):
-        print e.key()
         if e.key() == Qt.Key_E:
             # Pressing e for edit
             self.inputbox.setFocus()
@@ -141,11 +139,8 @@ class GeoEditor(QMainWindow):
         self.main_frame = QWidget()
         self.main_frame.setMinimumSize(QSize(800, 600))
         
-        # Create the mpl Figure and FigCanvas objects. 
-        # 5x4 inches, 100 dots-per-inch
-        #
         self.dpi = 100
-        self.fig = plt.Figure((6.5, 5), dpi=self.dpi)
+        self.fig = plt.Figure((6.5, 5), dpi=self.dpi, facecolor='w', edgecolor='w')
         self.canvas = FigureCanvas(self.fig)
         self.canvas.setParent(self.main_frame)
         
@@ -218,25 +213,7 @@ class GeoEditor(QMainWindow):
         self.main_frame.setLayout(hbox)
         self.setCentralWidget(self.main_frame)
         self.main_frame.setFocus()
-    
-    
-    def create_action(  self, text, slot=None, shortcut=None, 
-                        icon=None, tip=None, checkable=False, 
-                        signal="triggered()"):
-        action = QAction(text, self)
-        if icon is not None:
-            action.setIcon(QIcon(":/%s.png" % icon))
-        if shortcut is not None:
-            action.setShortcut(shortcut)
-        if tip is not None:
-            action.setToolTip(tip)
-            action.setStatusTip(tip)
-        if slot is not None:
-            self.connect(action, SIGNAL(signal), slot)
-        if checkable:
-            action.setCheckable(True)
-        return action
-    
+        
     
     def on_draw(self):
         """ Redraws the figure
@@ -291,14 +268,10 @@ class GeoEditor(QMainWindow):
                                         s=self.pixel_slider.value(), 
                                         marker='s', 
                                         edgecolor="k", 
-                                        facecolor=None, 
-                                        linewidth=1)
+                                        facecolor='none', 
+                                        linewidth=2)
         
-        gb_i, gb_j = self.dw.dw_ij2_global(self.cursory, self.cursorx)
-        self.latdisplay.setText("Latitude   : {0}".format(self.alldata.lats[gb_i]))
-        self.londisplay.setText("Longitude: {0}".format(self.alldata.lons[gb_j]))
-        self.valdisplay.setText("Value       : {0}".format(self.alldata[gb_i, gb_j]))
-        
+        self.set_information(self.cursory, self.cursorx)        
         self.canvas.draw()
     
     
@@ -309,9 +282,8 @@ class GeoEditor(QMainWindow):
         self.main_frame.setFocus()
     
     
+    
     def on_pick(self, event):
-        mevent = event.mouseevent
-        
         # If we've picked up more than one point then we need to try again!
         if len(event.ind) > 1:
             self.statusBar().showMessage("!!! More than one points picked. Try again !!!")
@@ -320,15 +292,21 @@ class GeoEditor(QMainWindow):
             self.valdisplay.setText("Value       : ")
         else:
             self.statusBar().showMessage("Selected one point")
-            # dw_index is the "local" index in the data window. 
-            dw_index = event.ind[0]
-            dw_i, dw_j = self.dw.dw_index_to_ij(dw_index)
-            # First we need to map the local index into the global index
-            gb_i, gb_j = self.dw.dw_ij2_global(dw_i, dw_j)
-            print dw_index, dw_i, dw_j, gb_i, gb_j
-            self.latdisplay.setText("Latitude   : {0}".format(self.alldata.lats[gb_i]))
-            self.londisplay.setText("Longitude: {0}".format(self.alldata.lons[gb_j]))
-            self.valdisplay.setText("Value       : {0}".format(self.alldata[gb_i, gb_j]))
+            # event.ind[0] is the "local" index in the data window. 
+            dw_i, dw_j = self.dw.index_to_ij(event.ind[0])
+            self.set_information(dw_i, dw_j)
+    
+    
+    
+    def set_information(self, i, j):
+        """ Sets the displayed information about the pixel in the right sidebar. 
+        ARGUMENTS
+            i, j : the local (i.e. DataWindow) 0-based indices for the element
+        """
+        i_global, j_global = self.dw.dw_ij2_global(i, j) # Convert local indices to global indices
+        self.latdisplay.setText("Latitude   : {0}".format(self.gd.lats[i_global]))
+        self.londisplay.setText("Longitude: {0}".format(self.gd.lons[j_global]))
+        self.valdisplay.setText("Value       : {0}".format(self.gd[i_global, j_global]))
     
     
     def on_about(self):
@@ -337,6 +315,24 @@ class GeoEditor(QMainWindow):
     
     
     def save_plot(self): pass
+    
+    
+    def create_action(  self, text, slot=None, shortcut=None, 
+                        icon=None, tip=None, checkable=False, 
+                        signal="triggered()"):
+        action = QAction(text, self)
+        if icon is not None:
+            action.setIcon(QIcon(":/%s.png" % icon))
+        if shortcut is not None:
+            action.setShortcut(shortcut)
+        if tip is not None:
+            action.setToolTip(tip)
+            action.setStatusTip(tip)
+        if slot is not None:
+            self.connect(action, SIGNAL(signal), slot)
+        if checkable:
+            action.setCheckable(True)
+        return action
     
     
     def add_actions(self, target, actions):
