@@ -116,12 +116,25 @@ class GeoEditor(QMainWindow):
         self.create_menu()
         self.create_main_frame()
         self.on_draw()
-        # self.move_cursor()
         self.statusBar().showMessage('GeoEditor 2015')
-        
-        #
-        # self.update_ui()
-        # self.on_show()
+    
+    
+    def keyPressEvent(self, e):
+        print e.key()
+        if e.key() == Qt.Key_E:
+            # Pressing e for edit
+            self.inputbox.setFocus()
+        elif e.key() == Qt.Key_C:
+            self.colormaps.setFocus()
+        elif e.key() == Qt.Key_Plus:
+            self.pixel_slider.setValue(self.pixel_slider.value()+2)
+        elif e.key() == Qt.Key_Minus:
+            self.pixel_slider.setValue(self.pixel_slider.value()-2)
+        elif e.key() == Qt.Key_Escape:
+            # Pressing escape to refocus back to the main frame
+            self.main_frame.setFocus()
+        else:
+            self.draw_cursor(event=e)
     
     
     def create_main_frame(self):
@@ -148,7 +161,7 @@ class GeoEditor(QMainWindow):
         self.axes.get_yaxis().set_visible(False)
         
         self.canvas.mpl_connect('pick_event', self.on_pick)
-        self.canvas.mpl_connect('key_press_event', self.draw_cursor)
+        # self.canvas.mpl_connect('key_press_event', self.draw_cursor)
         
         # Create the navigation toolbar, tied to the canvas
         #
@@ -204,7 +217,7 @@ class GeoEditor(QMainWindow):
         
         self.main_frame.setLayout(hbox)
         self.setCentralWidget(self.main_frame)
-        self.canvas.setFocus()
+        self.main_frame.setFocus()
     
     
     def create_action(  self, text, slot=None, shortcut=None, 
@@ -258,23 +271,17 @@ class GeoEditor(QMainWindow):
         if event is not None: 
             # We are only doin this when there is an event, i.e. we have reached this function
             # not from a manual call but the triggering of a function
-            key = event.key
+            key = event.key()
             # Changing the position of the cursor, while making sure that the new position
             # is not outside the boundary of the datawindow. 
-            print key
-            if key == "up":
+            if key == Qt.Key_Up:
                 self.cursory = max(0, self.cursory - 1)
-            elif key == "down":
+            elif key == Qt.Key_Down:
                 self.cursory = min(self.dw.nrows-1, self.cursory + 1)
-            elif key == "left":
+            elif key == Qt.Key_Left:
                 self.cursorx = max(0, self.cursorx - 1)
-            elif key == "right":
+            elif key == Qt.Key_Right:
                 self.cursorx = min(self.dw.ncols-1, self.cursorx + 1)
-            # elif key == "r":
-            #     # self.update_value()
-            #     self.inputbox.setFocus()
-            #     print "text received: {0}".format(self.inputbox.text())
-            #     self.canvas.setFocus()
             else:
                 return
         
@@ -298,7 +305,8 @@ class GeoEditor(QMainWindow):
     # def update_value_under_cursor(self):
     def update_value(self):
         print "text received: {0}".format(self.inputbox.text())
-        self.canvas.setFocus()
+        # self.canvas.setFocus()
+        self.main_frame.setFocus()
     
     
     def on_pick(self, event):
@@ -324,16 +332,8 @@ class GeoEditor(QMainWindow):
     
     
     def on_about(self):
-        msg = """ A demo of using PyQt with matplotlib:
-        
-         * Use the matplotlib navigation bar
-         * Add values to the text box and press Enter (or click "Draw")
-         * Show or hide the grid
-         * Drag the slider to modify the width of the bars
-         * Save the plot to a file using the File menu
-         * Click on a bar to receive an informative message
-        """
-        QMessageBox.about(self, "About the demo", msg.strip())
+        msg = """ Edit 2D geophysical field.  """
+        QMessageBox.about(self, "About", msg.strip())
     
     
     def save_plot(self): pass
@@ -369,7 +369,7 @@ class GeoEditor(QMainWindow):
     
 def main():
     app = QApplication(sys.argv)
-    mw = GeoEditor(dwx=50,dwy=40)
+    mw = GeoEditor(dwx=50,dwy=50)
     mw.show()
     app.exec_()
 
