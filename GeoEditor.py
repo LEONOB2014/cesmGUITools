@@ -16,6 +16,9 @@ from PyQt4.QtGui import *
 
 import matplotlib as mpl
 from matplotlib import pylab as plt
+from mpl_toolkits.basemap import Basemap
+import matplotlib.patches as mpatches
+from matplotlib.collections import PatchCollection
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt4agg import NavigationToolbar2QT as NavigationToolbar
 
@@ -58,6 +61,7 @@ class DataWindow(Data):
         """ Converts an i,j index into the data window into an index for the
         same element into the global data. """
         return (self.si/self.ncols + i, self.si%self.ncols + j)
+
 
 
 class GlobalData(Data):
@@ -107,14 +111,14 @@ class GeoEditor(QMainWindow):
         self.maps = mpl.cm.datad.keys()  # The names of colormaps available
         self.maps.sort() # Sorting them alphabetically for ease of use
         
-        self.cursor = None
+        self.cursor  = None
         self.cursorx = 0
         self.cursory = 0
         
         
         self.create_menu()
         self.create_main_frame()
-        self.on_draw()
+        self.draw_datawindow_content()
         self.statusBar().showMessage('GeoEditor 2015')
     
     
@@ -132,7 +136,7 @@ class GeoEditor(QMainWindow):
             # Pressing escape to refocus back to the main frame
             self.main_frame.setFocus()
         else:
-            self.draw_cursor(event=e)
+            self.update_data_window(e)
     
     
     def create_main_frame(self):
@@ -143,6 +147,16 @@ class GeoEditor(QMainWindow):
         self.fig = plt.Figure((6.5, 5), dpi=self.dpi, facecolor='w', edgecolor='w')
         self.canvas = FigureCanvas(self.fig)
         self.canvas.setParent(self.main_frame)
+        
+        
+        self.preview_frame = QWidget()
+        self.preview_fig = plt.Figure((3, 1.5), dpi=self.dpi, facecolor='w', edgecolor='w')
+        self.preview = FigureCanvas(self.preview_fig)
+        self.preview.setParent(self.preview_frame)
+        self.preview_axes = self.preview_fig.add_subplot(111)
+        self.preview_axes.get_xaxis().set_visible(False)
+        self.preview_axes.get_yaxis().set_visible(False)
+        
         
         # Since we have only one plot, we can use add_axes 
         # instead of add_subplot, but then the subplot
@@ -156,43 +170,43 @@ class GeoEditor(QMainWindow):
         self.axes.get_yaxis().set_visible(False)
         
         self.canvas.mpl_connect('pick_event', self.on_pick)
-        # self.canvas.mpl_connect('key_press_event', self.draw_cursor)
         
-        # Create the navigation toolbar, tied to the canvas
-        #
-        # self.mpl_toolbar = NavigationToolbar(self.canvas, self.main_frame)
         
         # Other GUI controls
-
-
+        # Information section
         self.infodisplay = QLabel("Pixel Information:")
         self.latdisplay  = QLabel("Latitude   : ")
         self.londisplay  = QLabel("Longitude: ")
         self.valdisplay  = QLabel("Value       : ")
         
+        # Pixel size control slider
         pixel_slider_label = QLabel('Pixel size:')
         self.pixel_slider = QSlider(Qt.Horizontal)
         self.pixel_slider.setRange(1, 100)
         self.pixel_slider.setValue(25)
         self.pixel_slider.setTracking(True)
         self.pixel_slider.setTickPosition(QSlider.TicksBothSides)
-        self.connect(self.pixel_slider, SIGNAL('valueChanged(int)'), self.on_draw)
+        self.connect(self.pixel_slider, SIGNAL('valueChanged(int)'), self.draw_datawindow_content)
         
-        cmap_label = QLabel('Colormap:')
+        # Colorscheme selector
+        cmap_label = QLabel('Colorscheme:')
         self.colormaps = QComboBox(self)
         self.colormaps.addItems(self.maps)
         self.colormaps.setCurrentIndex(self.maps.index('RdBu'))
-        self.connect(self.colormaps, SIGNAL("currentIndexChanged(int)"), self.on_draw)
+        self.connect(self.colormaps, SIGNAL("currentIndexChanged(int)"), self.draw_datawindow_content)
         
+        # New value editor
         self.inputbox = QLineEdit()
         self.connect(self.inputbox, SIGNAL('editingFinished ()'), self.update_value)
         
         vbox = QVBoxLayout()
         vbox.addWidget(self.canvas)
-        # vbox.addWidget(self.mpl_toolbar)
         
         
         vbox2 = QVBoxLayout()
+        vbox2.addWidget(self.preview)
+        self.draw_preview_worldmap()
+        
         for w in [self.infodisplay, self.latdisplay, self.londisplay, self.valdisplay, self.inputbox]:
             w.setFixedWidth(150)
             vbox2.addWidget(w)
@@ -213,11 +227,89 @@ class GeoEditor(QMainWindow):
         self.main_frame.setLayout(hbox)
         self.setCentralWidget(self.main_frame)
         self.main_frame.setFocus()
+    
+    
+    def draw_preview_worldmap(self):
+        m = Basemap(projection='cyl', lon_0=0,llcrnrlat=-90,urcrnrlat=90,\
+            llcrnrlon=-180,urcrnrlon=180,resolution='c', ax=self.preview_axes)
+        m.drawcoastlines(linewidth=0.5)
+        self.preview_axes.set_xlim([-180,180])
+        self.preview_axes.set_ylim([-90,90])
+        self.preview.draw()
+        self.draw_preview_window()
+        self.preview_fig.tight_layout()
+    
+    
+    def draw_preview_window(self):
+        patches = []
+        i, j = self.dw.index_to_ij(self.dw.si)
+        i, j = self.dw.dw_ij2_global(i, j)
+        print self.gd.lons[j], self.gd.lats[i+self.dw.nrows]
+        dlat = self.gd.lats[0] - self.gd.lats[self.dw.nrows]
+        dlon = abs(self.gd.lons[0] - self.gd.lons[self.dw.ncols])
+        print dlat, dlon
+        rect = mpatches.Rectangle((self.gd.lons[j], self.gd.lats[i+self.dw.nrows]), dlat, dlon, linewidth=2, facecolor='k')
+        patches.append(rect)
+        collection = PatchCollection(patches, cmap=plt.cm.hsv, alpha=0.3)
+        self.preview_axes.add_collection(collection)
+        self.preview.draw()
+    
+    
+    
+    def update_data_window(self, event):
+        """
+        Updates the current view in the data window. This function is 
+        triggered whenever the user presses the arrow keys. 
+        ARGUMENTS
+            event - Qt key press event
+        """
+        key = event.key()
+        on_boundary = None   #This will store which boundary if any we've reached
+        if key == Qt.Key_Up:
+            if (self.cursory == 0):
+                on_boundary = "top"
+            else:
+                self.cursory = max(0, self.cursory - 1)
+        elif key == Qt.Key_Down:
+            if (self.cursory == self.dw.nrows-1):
+                on_boundary = "down"
+            else:
+                self.cursory = min(self.dw.nrows-1, self.cursory + 1)
+        elif key == Qt.Key_Left:
+            if (self.cursorx == 0):
+                on_boundary = "left"
+            else:
+                self.cursorx = max(0, self.cursorx - 1)
+        elif key == Qt.Key_Right:
+            if (self.cursorx == self.dw.ncols-1):
+                on_boundary = "right"
+            else:
+                self.cursorx = min(self.dw.ncols-1, self.cursorx + 1)
+        else:
+            return
+        
+        if on_boundary: 
+            pass
+        
+        self.update_cursor_position()
         
     
-    def on_draw(self):
-        """ Redraws the figure
-        """
+    
+    def update_cursor_position(self, noremove=False):
+        if self.cursor and (not noremove): self.cursor.remove()
+        _cx, _cy = self.cursorx, self.cursory
+        self.cursor = self.axes.scatter(_cx, _cy, 
+                                        s=self.pixel_slider.value(), 
+                                        marker='s', 
+                                        edgecolor="k", 
+                                        facecolor='none', 
+                                        linewidth=2)  
+        self.set_information(_cy, _cx)        
+        self.canvas.draw()
+        
+    
+    
+    def draw_datawindow_content(self):
         self.axes.clear()
         
         cmap = mpl.cm.get_cmap(self.maps[self.colormaps.currentIndex()])
@@ -240,45 +332,13 @@ class GeoEditor(QMainWindow):
         self.axes.set_xlim([0 - int(tmp2*0.04), int(tmp2*1.04)])
         self.canvas.draw()
         self.fig.tight_layout()
-        self.draw_cursor(noremove=True)
+        self.update_cursor_position(noremove=True)
     
     
-    def draw_cursor(self, event=None, noremove=False):
-        """ noremove - If True, does not make a call to remove the previous cursor. """
-        if event is not None: 
-            # We are only doin this when there is an event, i.e. we have reached this function
-            # not from a manual call but the triggering of a function
-            key = event.key()
-            # Changing the position of the cursor, while making sure that the new position
-            # is not outside the boundary of the datawindow. 
-            if key == Qt.Key_Up:
-                self.cursory = max(0, self.cursory - 1)
-            elif key == Qt.Key_Down:
-                self.cursory = min(self.dw.nrows-1, self.cursory + 1)
-            elif key == Qt.Key_Left:
-                self.cursorx = max(0, self.cursorx - 1)
-            elif key == Qt.Key_Right:
-                self.cursorx = min(self.dw.ncols-1, self.cursorx + 1)
-            else:
-                return
-        
-        if self.cursor and (not noremove): self.cursor.remove()
-        self.cursor = self.axes.scatter(self.cursorx, 
-                                        self.cursory, 
-                                        s=self.pixel_slider.value(), 
-                                        marker='s', 
-                                        edgecolor="k", 
-                                        facecolor='none', 
-                                        linewidth=2)
-        
-        self.set_information(self.cursory, self.cursorx)        
-        self.canvas.draw()
-    
-    
-    # def update_value_under_cursor(self):
+
+
     def update_value(self):
         print "text received: {0}".format(self.inputbox.text())
-        # self.canvas.setFocus()
         self.main_frame.setFocus()
     
     
