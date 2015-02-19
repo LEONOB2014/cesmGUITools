@@ -147,8 +147,6 @@ class GeoEditor(QMainWindow):
         self.axes.get_xaxis().set_visible(False)
         self.axes.get_yaxis().set_visible(False)
         
-        # # Bind the 'pick' event for clicking on one of the bars
-        # #
         self.canvas.mpl_connect('pick_event', self.on_pick)
         self.canvas.mpl_connect('key_press_event', self.draw_cursor)
         
@@ -174,11 +172,12 @@ class GeoEditor(QMainWindow):
         
         cmap_label = QLabel('Colormap:')
         self.colormaps = QComboBox(self)
-        # maps = mpl.cm.datad.keys()
-        # maps.sort()
         self.colormaps.addItems(self.maps)
         self.colormaps.setCurrentIndex(self.maps.index('RdBu'))
         self.connect(self.colormaps, SIGNAL("currentIndexChanged(int)"), self.on_draw)
+        
+        self.inputbox = QLineEdit()
+        self.connect(self.inputbox, SIGNAL('editingFinished ()'), self.update_value)
         
         vbox = QVBoxLayout()
         vbox.addWidget(self.canvas)
@@ -186,7 +185,7 @@ class GeoEditor(QMainWindow):
         
         
         vbox2 = QVBoxLayout()
-        for w in [self.infodisplay, self.latdisplay, self.londisplay, self.valdisplay]:
+        for w in [self.infodisplay, self.latdisplay, self.londisplay, self.valdisplay, self.inputbox]:
             w.setFixedWidth(150)
             vbox2.addWidget(w)
             vbox2.setAlignment(w, Qt.AlignTop)
@@ -231,12 +230,16 @@ class GeoEditor(QMainWindow):
         """
         self.axes.clear()
         
-        # self.axes.scatter(self.alldata.x, self.alldata.y, s=5, c=self.alldata.fdata, marker='s', cmap=mpl.cm.RdBu, edgecolor=None, linewidth=0, picker=1)
         cmap = mpl.cm.get_cmap(self.maps[self.colormaps.currentIndex()])
-        self.axes.scatter(self.dw.x, self.dw.y, s=self.pixel_slider.value(), 
-                          c=self.dw.data, marker='s', cmap=cmap, 
-                          edgecolor=None, linewidth=0, picker=3)
-        # self.axes.set_xlim([-179.5,179.5])
+        self.axes.scatter(self.dw.x, 
+                          self.dw.y, 
+                          s=self.pixel_slider.value(), 
+                          c=self.dw.data, 
+                          marker='s', 
+                          cmap=cmap, 
+                          edgecolor=None, 
+                          linewidth=0, 
+                          picker=3)
         
         # Setting the axes limits. This helps in setting the right orientation of the plot
         # and in clontrolling how much extra space we want around the scatter plot.
@@ -258,6 +261,7 @@ class GeoEditor(QMainWindow):
             key = event.key
             # Changing the position of the cursor, while making sure that the new position
             # is not outside the boundary of the datawindow. 
+            print key
             if key == "up":
                 self.cursory = max(0, self.cursory - 1)
             elif key == "down":
@@ -266,12 +270,22 @@ class GeoEditor(QMainWindow):
                 self.cursorx = max(0, self.cursorx - 1)
             elif key == "right":
                 self.cursorx = min(self.dw.ncols-1, self.cursorx + 1)
+            # elif key == "r":
+            #     # self.update_value()
+            #     self.inputbox.setFocus()
+            #     print "text received: {0}".format(self.inputbox.text())
+            #     self.canvas.setFocus()
             else:
                 return
         
         if self.cursor and (not noremove): self.cursor.remove()
-        self.cursor = self.axes.scatter(self.cursorx, self.cursory, s=self.pixel_slider.value(), marker='s', 
-                      edgecolor="k", facecolor=None, linewidth=1)
+        self.cursor = self.axes.scatter(self.cursorx, 
+                                        self.cursory, 
+                                        s=self.pixel_slider.value(), 
+                                        marker='s', 
+                                        edgecolor="k", 
+                                        facecolor=None, 
+                                        linewidth=1)
         
         gb_i, gb_j = self.dw.dw_ij2_global(self.cursory, self.cursorx)
         self.latdisplay.setText("Latitude   : {0}".format(self.alldata.lats[gb_i]))
@@ -279,6 +293,12 @@ class GeoEditor(QMainWindow):
         self.valdisplay.setText("Value       : {0}".format(self.alldata[gb_i, gb_j]))
         
         self.canvas.draw()
+    
+    
+    # def update_value_under_cursor(self):
+    def update_value(self):
+        print "text received: {0}".format(self.inputbox.text())
+        self.canvas.setFocus()
     
     
     def on_pick(self, event):
