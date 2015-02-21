@@ -26,8 +26,16 @@ mpl.rc('axes',edgecolor='w')
 
 class DataContainer(object):
     """
-    A view of the global data
+    The main container class for this application which does the job of storing
+    the map and other related data. 
     """
+    class Cursor(object):
+        def __init__(self):
+            self.cursor = None
+            self.x = 0
+            self.y = 0
+
+
     def __init__(self, nrows, ncols, fname):
         """
         ARGUMENTS
@@ -51,13 +59,72 @@ class DataContainer(object):
         self.dlat = self.lats[0] - self.lats[self.nrows]
         self.dlon = abs(self.lons[0] - self.lons[self.ncols])
         
-                
+        self.cursor = DataContainer.Cursor()
     
-    def update(self, si, sj):
+
+    def getCursor(self): return self.cursor
+    
+    def updateView(self, si, sj):
+    	"""
+    	Updates the view on the global data. 
+    	ARGUMENTS
+    		si, sj - the global i,j indices of the top left corner of the view
+    	"""
         self.view = self.data[si:si+self.nrows, sj:sj+self.ncols].view()
         self.si = si
         self.sj = sj
-        
+    
+    
+    def moveView(self, move):
+        """
+        Moves the view window over the global dataset in response to the L,R,U,D keys. 
+        ARGUMENTS
+            move : A Qt key value
+        """
+    	ci, cj = self.viewIndex2GlobalIndex(self.cursor.y, self.cursor.x)
+
+        col_inc = int(self.ncols*0.15)  # Column increment
+        row_inc = int(self.nrows*0.15)  # Row increment
+
+    	if (move == Qt.Key_L):
+            # MOVE THE VIEW LEFT
+    		new_sj = self.sj + col_inc
+    		if cj < new_sj:
+    			return (-1, "Move cursor to the right")
+    		else:
+    			self.updateView(self.si, new_sj)
+    			self.cursor.x -= col_inc
+    			return (0, None)
+        elif (move == Qt.Key_H):
+            # MOVE THE VIEW RIGHT
+            new_sj = self.sj - col_inc
+            if cj > (new_sj + self.ncols):
+                return (-1, "Move cursor to the left")
+            else:
+                self.updateView(self.si, new_sj)
+                self.cursor.x += col_inc
+                return (0, None)
+        elif (move == Qt.Key_K):
+            # MOVE THE VIEW UP
+            new_si = self.si - row_inc
+            if ci > (new_si + self.nrows):
+                return (-1, "Move cursor up")
+            else:
+                self.updateView(new_si, self.sj)
+                self.cursor.y += row_inc
+                return (0, None)
+        elif (move == Qt.Key_J):
+            # MOVE THE VIEW DOWN
+            new_si = self.si + col_inc
+            if ci < new_si:
+                return (-1, "Move cursor down")
+            else:
+                self.updateView(new_si, self.sj)
+                self.cursor.y -= row_inc
+                return (0, None)
+
+
+
     def viewIndex2GlobalIndex(self, i, j):
         """ Converts an i,j index into the data window into an index for the
         same element into the global data. """
@@ -65,7 +132,8 @@ class DataContainer(object):
     
     
 
-class GeoEditor(QMainWindow):
+class GeoEditor(QMainWindow):    
+
     def __init__(self, parent=None, dwx=160, dwy=160):
         """
         ARGUMENTS:
@@ -74,20 +142,24 @@ class GeoEditor(QMainWindow):
         super(GeoEditor, self).__init__(parent)
         self.setWindowTitle('GeoEditor (c) Deepak Chandan')
         
+        #  Creating a variable that contains all the data
         self.dc = DataContainer(dwy, dwx, "data.txt")
-        # Set the initial data to the DataContainer class
-        self.dc.update(0, 0)
-        
+        # Set the initial view for the data container class
+        self.dc.updateView(0, 0)
+
+        # Defining a cursor on the data
+        self.cursor = self.dc.getCursor()
+
+        # The Rectangle object on the world map
+        self.prvrect = None
+
         self.maps = mpl.cm.datad.keys()  # The names of colormaps available
         self.maps.sort() # Sorting them alphabetically for ease of use
-        
-        self.cursor  = None
-        self.cursorx = 0
-        self.cursory = 0
-        
-        
+
         self.create_menu()
-        self.create_main_frame()
+        self.create_main_window()
+
+        self.draw_preview_worldmap()
         self.draw_datawindow_content()
         self.statusBar().showMessage('GeoEditor 2015')
     
@@ -105,11 +177,21 @@ class GeoEditor(QMainWindow):
         elif e.key() == Qt.Key_Escape:
             # Pressing escape to refocus back to the main frame
             self.main_frame.setFocus()
+        elif e.key() in [Qt.Key_H, Qt.Key_J, Qt.Key_K, Qt.Key_L]:
+        	retcode, message = self.dc.moveView(e.key())
+        	if (retcode == -1):
+        		self.statusBar().showMessage(message)
+        	else:
+	        	self.draw_datawindow_content()
+                self.draw_preview_rectangle()
         else:
             self.update_data_window(e)
     
     
-    def create_main_frame(self):
+    def create_main_window(self):
+    	"""
+    	This function creates the main window of the program. 
+    	"""
         self.main_frame = QWidget()
         self.main_frame.setMinimumSize(QSize(700, 700))
         
@@ -173,7 +255,7 @@ class GeoEditor(QMainWindow):
         
         vbox2 = QVBoxLayout()
         vbox2.addWidget(self.preview)
-        self.draw_preview_worldmap()
+        # self.draw_preview_worldmap()
         
         for w in [self.infodisplay, self.latdisplay, self.londisplay, self.valdisplay, self.inputbox]:
             w.setFixedWidth(150)
@@ -198,22 +280,31 @@ class GeoEditor(QMainWindow):
     
     
     def draw_preview_worldmap(self):
+    	"""
+    	This function draws the world map in the preview window on the top right hand corner 
+    	of the application.
+    	"""
         m = Basemap(projection='cyl', lon_0=0,llcrnrlat=-90,urcrnrlat=90,\
             llcrnrlon=-180,urcrnrlon=180,resolution='c', ax=self.preview_axes)
         m.drawcoastlines(linewidth=0.5)
         self.preview_axes.set_xlim([-180,180])
         self.preview_axes.set_ylim([-90,90])
         self.preview.draw()
-        self.draw_preview_window()
+        self.draw_preview_rectangle()
         self.preview_fig.tight_layout()
     
     
-    def draw_preview_window(self):
+    def draw_preview_rectangle(self):
+    	"""
+    	This function draws the Rectangle, which indicates the current region being shown
+    	in the view, in the preview window.
+    	"""
+        if self.prvrect: self.prvrect.remove()
         patches = []
         rect = mpatches.Rectangle((self.dc.lons[self.dc.sj], self.dc.lats[self.dc.si+self.dc.nrows]), self.dc.dlat, self.dc.dlon, linewidth=2, facecolor='k')
         patches.append(rect)
-        collection = PatchCollection(patches, cmap=plt.cm.hsv, alpha=0.3)
-        self.preview_axes.add_collection(collection)
+        self.prvrect = PatchCollection(patches, cmap=plt.cm.hsv, alpha=0.3)
+        self.preview_axes.add_collection(self.prvrect)
         self.preview.draw()
     
     
@@ -228,51 +319,36 @@ class GeoEditor(QMainWindow):
         key = event.key()
         on_boundary = None   #This will store which boundary if any we've reached
         if key == Qt.Key_Up:
-            if (self.cursory == 0):
+            if (self.cursor.y == 0):
                 on_boundary = "top"
             else:
-                self.cursory = max(0, self.cursory - 1)
+                self.cursor.y = max(0, self.cursor.y - 1)
         elif key == Qt.Key_Down:
-            if (self.cursory == self.dc.nrows-1):
+            if (self.cursor.y == self.dc.nrows-1):
                 on_boundary = "down"
             else:
-                self.cursory = min(self.dc.nrows-1, self.cursory + 1)
+                self.cursor.y = min(self.dc.nrows-1, self.cursor.y + 1)
         elif key == Qt.Key_Left:
-            if (self.cursorx == 0):
+            if (self.cursor.x == 0):
                 on_boundary = "left"
             else:
-                self.cursorx = max(0, self.cursorx - 1)
+                self.cursor.x = max(0, self.cursor.x - 1)
         elif key == Qt.Key_Right:
-            if (self.cursorx == self.dc.ncols-1):
+            if (self.cursor.x == self.dc.ncols-1):
                 on_boundary = "right"
             else:
-                self.cursorx = min(self.dc.ncols-1, self.cursorx + 1)
+                self.cursor.x = min(self.dc.ncols-1, self.cursor.x + 1)
         else:
             return
-        
-        # if on_boundary:
-        #     i, j = self.dc.index_to_ij(self.dc.si)
-        #     i, j = self.dc.viewIndex2GlobalIndex(i, j)
-        #     m, n = self.dc.nrows, self.dc.ncols
-        #     if on_boundary == "top":
-        #         i = i-1
-        #     elif on_boundary == "down":
-        #         i = i+1
-        #     elif on_boundary == "left":
-        #         j = j-1
-        #     elif on_boundary == "right":
-        #         j = j+1
-        #     _data = self.gd[i:i+m, j:j+n]
-        #     self.dc.update(_data.flatten(), self.gd.ij_to_index(i, j))
         
         self.update_cursor_position()
         
     
     
     def update_cursor_position(self, noremove=False):
-        if self.cursor and (not noremove): self.cursor.remove()
-        _cx, _cy = self.cursorx+0.5, self.cursory+0.5
-        self.cursor = self.axes.scatter(_cx, _cy, 
+        if self.cursor.cursor and (not noremove): self.cursor.cursor.remove()
+        _cx, _cy = self.cursor.x+0.5, self.cursor.y+0.5
+        self.cursor.cursor = self.axes.scatter(_cx, _cy, 
                                         s=self.pixel_slider.value(), 
                                         marker='s', 
                                         edgecolor="k", 
@@ -286,9 +362,7 @@ class GeoEditor(QMainWindow):
     def draw_datawindow_content(self):
         self.axes.clear()
         cmap = mpl.cm.get_cmap(self.maps[self.colormaps.currentIndex()])
-        # self.axes.pcolormesh(self.dc.x, self.dc.y, self.dc.data, cmap=cmap)
         self.axes.pcolor(self.dc.view, cmap=cmap, edgecolors='k', linewidths=0.5)
-        # self.axes.imshow(self.dc.view, cmap=cmap, interpolation="nearest")
         
         # Setting the axes limits. This helps in setting the right orientation of the plot
         # and in clontrolling how much extra space we want around the scatter plot.
@@ -380,6 +454,7 @@ def main():
     app = QApplication(sys.argv)
     mw = GeoEditor(dwx=50,dwy=50)
     mw.show()
+    mw.raise_()
     app.exec_()
 
 
