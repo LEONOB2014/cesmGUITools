@@ -90,11 +90,11 @@ class DataContainer(object):
 
     
     def updateView(self, si, sj):
-    	"""
-    	Updates the view on the global data. 
-    	ARGUMENTS
-    		si, sj - the global i,j indices of the top left corner of the view
-    	"""
+        """
+        Updates the view on the global data. 
+        ARGUMENTS
+            si, sj - the global i,j indices of the top left corner of the view
+        """
         self.view = self.data[si:si+self.nrows, sj:sj+self.ncols].view()
         self.si = si
         self.sj = sj
@@ -106,34 +106,41 @@ class DataContainer(object):
         ARGUMENTS
             move : A Qt key value
         """
-    	ci, cj = self.viewIndex2GlobalIndex(self.cursor.y, self.cursor.x)
+        ci, cj = self.viewIndex2GlobalIndex(self.cursor.y, self.cursor.x)
 
         col_inc = int(self.ncols*0.15)  # Column increment
         row_inc = int(self.nrows*0.15)  # Row increment
 
-    	if (move == Qt.Key_L):
-            # MOVE THE VIEW LEFT
-    		new_sj = self.sj + col_inc
-    		if cj < new_sj:
-    			return (-1, "Move cursor to the right")
-    		else:
-    			self.updateView(self.si, new_sj)
-    			self.cursor.x -= col_inc
-    			return (0, None)
-        elif (move == Qt.Key_H):
+        if (move == Qt.Key_L):
             # MOVE THE VIEW RIGHT
-            new_sj = self.sj - col_inc
+            print self.nx-self.ncols, self.sj + col_inc
+            new_sj = min(self.nx-self.ncols-1, self.sj + col_inc)
+            if cj < new_sj:
+                return (-1, "Move cursor to the right")
+            elif new_sj == (self.nx-self.ncols-1):
+                return (-1, "At right boundary")
+            else:
+                self.updateView(self.si, new_sj)
+                self.cursor.x -= col_inc
+                return (0, None)
+        elif (move == Qt.Key_H):
+            # MOVE THE VIEW LEFT
+            new_sj = max(0, self.sj - col_inc)
             if cj > (new_sj + self.ncols):
                 return (-1, "Move cursor to the left")
+            elif new_sj == 0:
+                return (-1, "At left boundary")
             else:
                 self.updateView(self.si, new_sj)
                 self.cursor.x += col_inc
                 return (0, None)
         elif (move == Qt.Key_K):
             # MOVE THE VIEW UP
-            new_si = self.si - row_inc
+            new_si = max(0, self.si - row_inc)
             if ci > (new_si + self.nrows):
                 return (-1, "Move cursor up")
+            elif new_si == 0:
+                return (-1, "At top boundary")
             else:
                 self.updateView(new_si, self.sj)
                 self.cursor.y += row_inc
@@ -203,11 +210,11 @@ class GeoEditor(QMainWindow):
             # Pressing escape to refocus back to the main frame
             self.main_frame.setFocus()
         elif e.key() in [Qt.Key_H, Qt.Key_J, Qt.Key_K, Qt.Key_L]:
-        	retcode, message = self.dc.moveView(e.key())
-        	if (retcode == -1):
-        		self.statusBar().showMessage(message)
-        	else:
-	        	self.render_view()
+            retcode, message = self.dc.moveView(e.key())
+            if (retcode == -1):
+                self.statusBar().showMessage(message)
+            else:
+                self.render_view()
                 self.draw_preview_rectangle()
         else:
             self.dc.updateCursorPosition(e)
@@ -215,9 +222,9 @@ class GeoEditor(QMainWindow):
     
     
     def create_main_window(self):
-    	"""
-    	This function creates the main window of the program. 
-    	"""
+        """
+        This function creates the main window of the program. 
+        """
         self.main_frame = QWidget()
         self.main_frame.setMinimumSize(QSize(700, 700))
         
@@ -235,6 +242,7 @@ class GeoEditor(QMainWindow):
         self.preview_axes.get_xaxis().set_visible(False)
         self.preview_axes.get_yaxis().set_visible(False)
         
+        self.preview_fig.canvas.mpl_connect('button_press_event', self.onclick)
         
         # Since we have only one plot, we can use add_axes 
         # instead of add_subplot, but then the subplot
@@ -305,10 +313,10 @@ class GeoEditor(QMainWindow):
     
     
     def draw_preview_worldmap(self):
-    	"""
-    	This function draws the world map in the preview window on the top right hand corner 
-    	of the application.
-    	"""
+        """
+        This function draws the world map in the preview window on the top right hand corner 
+        of the application.
+        """
         m = Basemap(projection='cyl', lon_0=0,llcrnrlat=-90,urcrnrlat=90,\
             llcrnrlon=-180,urcrnrlon=180,resolution='c', ax=self.preview_axes)
         m.drawcoastlines(linewidth=0.5)
@@ -320,10 +328,10 @@ class GeoEditor(QMainWindow):
     
     
     def draw_preview_rectangle(self):
-    	"""
-    	This function draws the Rectangle, which indicates the current region being shown
-    	in the view, in the preview window.
-    	"""
+        """
+        This function draws the Rectangle, which indicates the current region being shown
+        in the view, in the preview window.
+        """
         if self.prvrect: self.prvrect.remove()
         patches = []
         rect = mpatches.Rectangle((self.dc.lons[self.dc.sj], 
@@ -393,6 +401,25 @@ class GeoEditor(QMainWindow):
         self.londisplay.setText("Longitude: {0}".format(self.dc.lons[j_global]))
         self.valdisplay.setText("Value       : {0}".format(self.dc.data[i_global, j_global]))
     
+
+    def onclick(self, event):
+        # 1. Get the global row, column indices of the point where mouse was clicked
+        print event.xdata
+        px = np.where(abs(self.dc.lons - event.xdata) < 0.5)[0][0]
+        py = np.where(abs(self.dc.lats - event.ydata) < 0.5)[0][0]
+        print px
+        # 2. Update the view data array 
+        self.dc.updateView(py, px)
+        # 3. Render the view
+        self.render_view()
+        # 4. Set the cursor to be at the top-left corner
+        self.cursor.x = 0
+        self.cursor.y = 0
+        # 5. Draw the cursor
+        self.draw_cursor()
+        # 6. Update the preview 
+        self.draw_preview_rectangle()
+
     
     def on_about(self):
         msg = """ Edit 2D geophysical field.  """
