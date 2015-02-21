@@ -44,7 +44,9 @@ class DataContainer(object):
             fname - name of the data file.
         """
         self.data = np.loadtxt(fname)
+        self.orig_data = np.copy(self.data)
         self.ny, self.nx = self.data.shape
+        self.dmin, self.dmax = (-5, 5)
         self.lons = np.linspace(-179.5,179.5,self.nx)
         self.lats = np.linspace(89.5,-89.5,self.ny)
                 
@@ -58,11 +60,34 @@ class DataContainer(object):
         
         self.dlat = self.lats[0] - self.lats[self.nrows]
         self.dlon = abs(self.lons[0] - self.lons[self.ncols])
+
+        # Tracking which elements are changed
+        self.longs_grid, self.lats_grid = np.meshgrid(self.lons, self.lats)
+        self.modified = np.zeros((self.ny, self.nx))
         
         self.cursor = DataContainer.Cursor()
     
 
     def getCursor(self): return self.cursor
+
+    def updateCursorPosition(self, event):
+        """
+        Updates the current view in the data window. This function is 
+        triggered whenever the user presses the arrow keys. 
+        ARGUMENTS
+            event - Qt key press event
+        """
+        key = event.key()
+        on_boundary = None   #This will store which boundary if any we've reached
+        if key == Qt.Key_Up:
+            self.cursor.y = max(0, self.cursor.y - 1)
+        elif key == Qt.Key_Down:
+            self.cursor.y = min(self.nrows-1, self.cursor.y + 1)
+        elif key == Qt.Key_Left:
+            self.cursor.x = max(0, self.cursor.x - 1)
+        elif key == Qt.Key_Right:
+            self.cursor.x = min(self.ncols-1, self.cursor.x + 1)
+
     
     def updateView(self, si, sj):
     	"""
@@ -160,7 +185,7 @@ class GeoEditor(QMainWindow):
         self.create_main_window()
 
         self.draw_preview_worldmap()
-        self.draw_datawindow_content()
+        self.render_view()
         self.statusBar().showMessage('GeoEditor 2015')
     
     
@@ -182,10 +207,11 @@ class GeoEditor(QMainWindow):
         	if (retcode == -1):
         		self.statusBar().showMessage(message)
         	else:
-	        	self.draw_datawindow_content()
+	        	self.render_view()
                 self.draw_preview_rectangle()
         else:
-            self.update_data_window(e)
+            self.dc.updateCursorPosition(e)
+            self.draw_cursor()
     
     
     def create_main_window(self):
@@ -196,7 +222,7 @@ class GeoEditor(QMainWindow):
         self.main_frame.setMinimumSize(QSize(700, 700))
         
         self.dpi = 100
-        self.fig = plt.Figure((7, 7), dpi=self.dpi, facecolor='w', edgecolor='w')
+        self.fig = plt.Figure((6, 6), dpi=self.dpi, facecolor='w', edgecolor='w')
         self.canvas = FigureCanvas(self.fig)
         self.canvas.setParent(self.main_frame)
         
@@ -236,18 +262,18 @@ class GeoEditor(QMainWindow):
         self.pixel_slider.setValue(65)
         self.pixel_slider.setTracking(True)
         self.pixel_slider.setTickPosition(QSlider.TicksBothSides)
-        self.connect(self.pixel_slider, SIGNAL('valueChanged(int)'), self.draw_datawindow_content)
+        self.connect(self.pixel_slider, SIGNAL('valueChanged(int)'), self.render_view)
         
         # Colorscheme selector
         cmap_label = QLabel('Colorscheme:')
         self.colormaps = QComboBox(self)
         self.colormaps.addItems(self.maps)
-        self.colormaps.setCurrentIndex(self.maps.index('RdBu'))
-        self.connect(self.colormaps, SIGNAL("currentIndexChanged(int)"), self.draw_datawindow_content)
+        self.colormaps.setCurrentIndex(self.maps.index('Spectral'))
+        self.connect(self.colormaps, SIGNAL("currentIndexChanged(int)"), self.render_view)
         
         # New value editor
         self.inputbox = QLineEdit()
-        self.connect(self.inputbox, SIGNAL('editingFinished ()'), self.update_value)
+        self.connect(self.inputbox, SIGNAL('returnPressed ()'), self.update_value)
         
         vbox = QVBoxLayout()
         vbox.addWidget(self.canvas)
@@ -255,7 +281,6 @@ class GeoEditor(QMainWindow):
         
         vbox2 = QVBoxLayout()
         vbox2.addWidget(self.preview)
-        # self.draw_preview_worldmap()
         
         for w in [self.infodisplay, self.latdisplay, self.londisplay, self.valdisplay, self.inputbox]:
             w.setFixedWidth(150)
@@ -301,51 +326,19 @@ class GeoEditor(QMainWindow):
     	"""
         if self.prvrect: self.prvrect.remove()
         patches = []
-        rect = mpatches.Rectangle((self.dc.lons[self.dc.sj], self.dc.lats[self.dc.si+self.dc.nrows]), self.dc.dlat, self.dc.dlon, linewidth=2, facecolor='k')
+        rect = mpatches.Rectangle((self.dc.lons[self.dc.sj], 
+                                   self.dc.lats[self.dc.si+self.dc.nrows]), 
+                                   self.dc.dlat, 
+                                   self.dc.dlon, 
+                                   linewidth=2, 
+                                   facecolor='k')
         patches.append(rect)
-        self.prvrect = PatchCollection(patches, cmap=plt.cm.hsv, alpha=0.3)
+        self.prvrect = PatchCollection(patches, alpha=0.3)
         self.preview_axes.add_collection(self.prvrect)
         self.preview.draw()
-    
-    
-    
-    def update_data_window(self, event):
-        """
-        Updates the current view in the data window. This function is 
-        triggered whenever the user presses the arrow keys. 
-        ARGUMENTS
-            event - Qt key press event
-        """
-        key = event.key()
-        on_boundary = None   #This will store which boundary if any we've reached
-        if key == Qt.Key_Up:
-            if (self.cursor.y == 0):
-                on_boundary = "top"
-            else:
-                self.cursor.y = max(0, self.cursor.y - 1)
-        elif key == Qt.Key_Down:
-            if (self.cursor.y == self.dc.nrows-1):
-                on_boundary = "down"
-            else:
-                self.cursor.y = min(self.dc.nrows-1, self.cursor.y + 1)
-        elif key == Qt.Key_Left:
-            if (self.cursor.x == 0):
-                on_boundary = "left"
-            else:
-                self.cursor.x = max(0, self.cursor.x - 1)
-        elif key == Qt.Key_Right:
-            if (self.cursor.x == self.dc.ncols-1):
-                on_boundary = "right"
-            else:
-                self.cursor.x = min(self.dc.ncols-1, self.cursor.x + 1)
-        else:
-            return
-        
-        self.update_cursor_position()
         
     
-    
-    def update_cursor_position(self, noremove=False):
+    def draw_cursor(self, noremove=False):
         if self.cursor.cursor and (not noremove): self.cursor.cursor.remove()
         _cx, _cy = self.cursor.x+0.5, self.cursor.y+0.5
         self.cursor.cursor = self.axes.scatter(_cx, _cy, 
@@ -359,27 +352,32 @@ class GeoEditor(QMainWindow):
         
     
     
-    def draw_datawindow_content(self):
+    def render_view(self):
         self.axes.clear()
         cmap = mpl.cm.get_cmap(self.maps[self.colormaps.currentIndex()])
-        self.axes.pcolor(self.dc.view, cmap=cmap, edgecolors='k', linewidths=0.5)
+        # self.axes.pcolor(self.dc.view, cmap=cmap, edgecolors='w', linewidths=0.5, vmin=self.dc.dmin, vmax=self.dc.dmax)
+        self.axes.pcolor(self.dc.view, cmap=cmap, edgecolors='w', linewidths=0.5)
         
         # Setting the axes limits. This helps in setting the right orientation of the plot
         # and in clontrolling how much extra space we want around the scatter plot.
         tmp1 = self.dc.nrows
         tmp2 = self.dc.ncols
         # I am putting 4% space around the scatter plot
-        self.axes.set_ylim([int(tmp1*1.04), 0 - int(tmp1*0.04)])
-        self.axes.set_xlim([0 - int(tmp2*0.04), int(tmp2*1.04)])
+        self.axes.set_ylim([int(tmp1*1.02), 0 - int(tmp1*0.02)])
+        self.axes.set_xlim([0 - int(tmp2*0.02), int(tmp2*1.02)])
         self.canvas.draw()
         self.fig.tight_layout()
-        self.update_cursor_position(noremove=True)
+        self.draw_cursor(noremove=True)
     
     
 
 
     def update_value(self):
         print "text received: {0}".format(self.inputbox.text())
+        ci, cj = self.dc.viewIndex2GlobalIndex(self.cursor.y, self.cursor.x)
+        self.dc.modified[ci, cj] = 1
+        print ci, cj
+        self.inputbox.clear()
         self.main_frame.setFocus()
     
     
