@@ -288,8 +288,20 @@ class GeoEditor(QMainWindow):
         else:
             return
         
-        if on_boundary: 
-            pass
+        # if on_boundary:
+        #     i, j = self.dw.index_to_ij(self.dw.si)
+        #     i, j = self.dw.dw_ij2_global(i, j)
+        #     m, n = self.dw.nrows, self.dw.ncols
+        #     if on_boundary == "top":
+        #         i = i-1
+        #     elif on_boundary == "down":
+        #         i = i+1
+        #     elif on_boundary == "left":
+        #         j = j-1
+        #     elif on_boundary == "right":
+        #         j = j+1
+        #     _data = self.gd[i:i+m, j:j+n]
+        #     self.dw.update(_data.flatten(), self.gd.ij_to_index(i, j))
         
         self.update_cursor_position()
         
