@@ -24,73 +24,44 @@ from matplotlib.backends.backend_qt4agg import NavigationToolbar2QT as Navigatio
 
 mpl.rc('axes',edgecolor='w')
 
-class Data(object):
-    def __init__(self):
-        self.ncols = None
-        self.nrows = None
-    
-    def index_to_ij(self, idx):
-        """ Maps the scalar index of each element into it's (i,j) index. """
-        return (idx/self.ncols, idx%self.ncols)
-    
-    def ij_to_index(self, i, j):
-        """ Maps the (i,j) index of each element into a unique scalar index. """
-        return i*self.ncols + j
-    
-
-
-class DataWindow(Data):
+class DataContainer(object):
     """
     A view of the global data
     """
-    def __init__(self, m, n):
-        self.data = None
-        self.nrows= m
-        self.ncols= n
-        self.si   = None  # the global index of the first element 
+    def __init__(self, nrows, ncols, fname):
+        """
+        ARGUMENTS
+            nrows - number of rows in the view
+            ncols - number of columns in the view
+            fname - name of the data file.
+        """
+        self.data = np.loadtxt(fname)
+        self.ny, self.nx = self.data.shape
+        self.lons = np.linspace(-179.5,179.5,self.nx)
+        self.lats = np.linspace(89.5,-89.5,self.ny)
+                
         
-        self.x, self.y = np.meshgrid(np.arange(self.ncols), np.arange(self.nrows))
-        self.x = self.x.flatten()
-        self.y = self.y.flatten()
+        # Datawindow variables
+        self.view   = None        # The array (actually a numpy view) that stores the data to be displayed in the main window
+        self.nrows  = nrows
+        self.ncols  = ncols
+        self.si     = None        # 0-based row index of the first element 
+        self.sj     = None
+        
+        self.dlat = self.lats[0] - self.lats[self.nrows]
+        self.dlon = abs(self.lons[0] - self.lons[self.ncols])
+        
+                
     
-    def update(self, vals, si):
-        self.data = np.copy(vals)
+    def update(self, si, sj):
+        self.view = self.data[si:si+self.nrows, sj:sj+self.ncols].view()
         self.si = si
+        self.sj = sj
         
-    def dw_ij2_global(self, i, j):
+    def viewIndex2GlobalIndex(self, i, j):
         """ Converts an i,j index into the data window into an index for the
         same element into the global data. """
-        return (self.si/self.ncols + i, self.si%self.ncols + j)
-
-
-
-class GlobalData(Data):
-    """
-    This class contains the global, i.e. the full data for the program. It also
-    contains the lat/lon coordinates for the data and a number of helper functions
-    to help convert between 2D and 1D indexing of the data. 
-    """
-    def __init__(self, fname):
-        self.raw_data = np.loadtxt(fname)
-        self.original_data = np.copy(self.raw_data)
-        self.nrows, self.ncols = self.raw_data.shape
-        self.fdata = self.raw_data.flatten()
-        
-        self.lons = np.linspace(-179.5,179.5,self.raw_data.shape[1])
-        self.lats = np.linspace(89.5,-89.5,self.raw_data.shape[0])
-                
-    def __getitem__(self, i):
-        if isinstance(i, tuple):
-            return self.raw_data[i]
-        else:
-            return self.fdata[i]
-    
-    def __setitem__(self, i, val):
-        if isinstance(i, tuple):
-            self.raw_data[i] = val
-        else:
-            self.fdata[i] = val
-    
+        return (self.si + i, self.sj + j)
     
     
 
@@ -98,15 +69,14 @@ class GeoEditor(QMainWindow):
     def __init__(self, parent=None, dwx=160, dwy=160):
         """
         ARGUMENTS:
-            dwx, dwy - size of the DataWindow in number of array elements
+            dwx, dwy - size of the DataContainer in number of array elements
         """
         super(GeoEditor, self).__init__(parent)
         self.setWindowTitle('GeoEditor (c) Deepak Chandan')
         
-        self.gd = GlobalData("data.txt")
-        self.dw = DataWindow(dwy, dwx)
-        # Set the initial data to the DataWindow class
-        self.dw.update(self.gd[0:dwy, 0:dwx].flatten(), self.gd.ij_to_index(0,0))
+        self.dc = DataContainer(dwy, dwx, "data.txt")
+        # Set the initial data to the DataContainer class
+        self.dc.update(0, 0)
         
         self.maps = mpl.cm.datad.keys()  # The names of colormaps available
         self.maps.sort() # Sorting them alphabetically for ease of use
@@ -141,10 +111,10 @@ class GeoEditor(QMainWindow):
     
     def create_main_frame(self):
         self.main_frame = QWidget()
-        self.main_frame.setMinimumSize(QSize(800, 600))
+        self.main_frame.setMinimumSize(QSize(700, 700))
         
         self.dpi = 100
-        self.fig = plt.Figure((6.5, 5), dpi=self.dpi, facecolor='w', edgecolor='w')
+        self.fig = plt.Figure((7, 7), dpi=self.dpi, facecolor='w', edgecolor='w')
         self.canvas = FigureCanvas(self.fig)
         self.canvas.setParent(self.main_frame)
         
@@ -169,8 +139,6 @@ class GeoEditor(QMainWindow):
         self.axes.get_xaxis().set_visible(False)
         self.axes.get_yaxis().set_visible(False)
         
-        self.canvas.mpl_connect('pick_event', self.on_pick)
-        
         
         # Other GUI controls
         # Information section
@@ -183,7 +151,7 @@ class GeoEditor(QMainWindow):
         pixel_slider_label = QLabel('Pixel size:')
         self.pixel_slider = QSlider(Qt.Horizontal)
         self.pixel_slider.setRange(1, 100)
-        self.pixel_slider.setValue(25)
+        self.pixel_slider.setValue(65)
         self.pixel_slider.setTracking(True)
         self.pixel_slider.setTickPosition(QSlider.TicksBothSides)
         self.connect(self.pixel_slider, SIGNAL('valueChanged(int)'), self.draw_datawindow_content)
@@ -242,13 +210,7 @@ class GeoEditor(QMainWindow):
     
     def draw_preview_window(self):
         patches = []
-        i, j = self.dw.index_to_ij(self.dw.si)
-        i, j = self.dw.dw_ij2_global(i, j)
-        print self.gd.lons[j], self.gd.lats[i+self.dw.nrows]
-        dlat = self.gd.lats[0] - self.gd.lats[self.dw.nrows]
-        dlon = abs(self.gd.lons[0] - self.gd.lons[self.dw.ncols])
-        print dlat, dlon
-        rect = mpatches.Rectangle((self.gd.lons[j], self.gd.lats[i+self.dw.nrows]), dlat, dlon, linewidth=2, facecolor='k')
+        rect = mpatches.Rectangle((self.dc.lons[self.dc.sj], self.dc.lats[self.dc.si+self.dc.nrows]), self.dc.dlat, self.dc.dlon, linewidth=2, facecolor='k')
         patches.append(rect)
         collection = PatchCollection(patches, cmap=plt.cm.hsv, alpha=0.3)
         self.preview_axes.add_collection(collection)
@@ -271,27 +233,27 @@ class GeoEditor(QMainWindow):
             else:
                 self.cursory = max(0, self.cursory - 1)
         elif key == Qt.Key_Down:
-            if (self.cursory == self.dw.nrows-1):
+            if (self.cursory == self.dc.nrows-1):
                 on_boundary = "down"
             else:
-                self.cursory = min(self.dw.nrows-1, self.cursory + 1)
+                self.cursory = min(self.dc.nrows-1, self.cursory + 1)
         elif key == Qt.Key_Left:
             if (self.cursorx == 0):
                 on_boundary = "left"
             else:
                 self.cursorx = max(0, self.cursorx - 1)
         elif key == Qt.Key_Right:
-            if (self.cursorx == self.dw.ncols-1):
+            if (self.cursorx == self.dc.ncols-1):
                 on_boundary = "right"
             else:
-                self.cursorx = min(self.dw.ncols-1, self.cursorx + 1)
+                self.cursorx = min(self.dc.ncols-1, self.cursorx + 1)
         else:
             return
         
         # if on_boundary:
-        #     i, j = self.dw.index_to_ij(self.dw.si)
-        #     i, j = self.dw.dw_ij2_global(i, j)
-        #     m, n = self.dw.nrows, self.dw.ncols
+        #     i, j = self.dc.index_to_ij(self.dc.si)
+        #     i, j = self.dc.viewIndex2GlobalIndex(i, j)
+        #     m, n = self.dc.nrows, self.dc.ncols
         #     if on_boundary == "top":
         #         i = i-1
         #     elif on_boundary == "down":
@@ -301,7 +263,7 @@ class GeoEditor(QMainWindow):
         #     elif on_boundary == "right":
         #         j = j+1
         #     _data = self.gd[i:i+m, j:j+n]
-        #     self.dw.update(_data.flatten(), self.gd.ij_to_index(i, j))
+        #     self.dc.update(_data.flatten(), self.gd.ij_to_index(i, j))
         
         self.update_cursor_position()
         
@@ -309,7 +271,7 @@ class GeoEditor(QMainWindow):
     
     def update_cursor_position(self, noremove=False):
         if self.cursor and (not noremove): self.cursor.remove()
-        _cx, _cy = self.cursorx, self.cursory
+        _cx, _cy = self.cursorx+0.5, self.cursory+0.5
         self.cursor = self.axes.scatter(_cx, _cy, 
                                         s=self.pixel_slider.value(), 
                                         marker='s', 
@@ -323,22 +285,15 @@ class GeoEditor(QMainWindow):
     
     def draw_datawindow_content(self):
         self.axes.clear()
-        
         cmap = mpl.cm.get_cmap(self.maps[self.colormaps.currentIndex()])
-        self.axes.scatter(self.dw.x, 
-                          self.dw.y, 
-                          s=self.pixel_slider.value(), 
-                          c=self.dw.data, 
-                          marker='s', 
-                          cmap=cmap, 
-                          edgecolor=None, 
-                          linewidth=0, 
-                          picker=3)
+        # self.axes.pcolormesh(self.dc.x, self.dc.y, self.dc.data, cmap=cmap)
+        self.axes.pcolor(self.dc.view, cmap=cmap, edgecolors='k', linewidths=0.5)
+        # self.axes.imshow(self.dc.view, cmap=cmap, interpolation="nearest")
         
         # Setting the axes limits. This helps in setting the right orientation of the plot
         # and in clontrolling how much extra space we want around the scatter plot.
-        tmp1 = self.dw.nrows
-        tmp2 = self.dw.ncols
+        tmp1 = self.dc.nrows
+        tmp2 = self.dc.ncols
         # I am putting 4% space around the scatter plot
         self.axes.set_ylim([int(tmp1*1.04), 0 - int(tmp1*0.04)])
         self.axes.set_xlim([0 - int(tmp2*0.04), int(tmp2*1.04)])
@@ -354,31 +309,17 @@ class GeoEditor(QMainWindow):
         self.main_frame.setFocus()
     
     
-    
-    def on_pick(self, event):
-        # If we've picked up more than one point then we need to try again!
-        if len(event.ind) > 1:
-            self.statusBar().showMessage("!!! More than one points picked. Try again !!!")
-            self.latdisplay.setText("Latitude   : ")
-            self.londisplay.setText("Longitude: ")
-            self.valdisplay.setText("Value       : ")
-        else:
-            self.statusBar().showMessage("Selected one point")
-            # event.ind[0] is the "local" index in the data window. 
-            dw_i, dw_j = self.dw.index_to_ij(event.ind[0])
-            self.set_information(dw_i, dw_j)
-    
-    
+        
     
     def set_information(self, i, j):
         """ Sets the displayed information about the pixel in the right sidebar. 
         ARGUMENTS
-            i, j : the local (i.e. DataWindow) 0-based indices for the element
+            i, j : the local (i.e. DataContainer) 0-based indices for the element
         """
-        i_global, j_global = self.dw.dw_ij2_global(i, j) # Convert local indices to global indices
-        self.latdisplay.setText("Latitude   : {0}".format(self.gd.lats[i_global]))
-        self.londisplay.setText("Longitude: {0}".format(self.gd.lons[j_global]))
-        self.valdisplay.setText("Value       : {0}".format(self.gd[i_global, j_global]))
+        i_global, j_global = self.dc.viewIndex2GlobalIndex(i, j) # Convert local indices to global indices
+        self.latdisplay.setText("Latitude   : {0}".format(self.dc.lats[i_global]))
+        self.londisplay.setText("Longitude: {0}".format(self.dc.lons[j_global]))
+        self.valdisplay.setText("Value       : {0}".format(self.dc.data[i_global, j_global]))
     
     
     def on_about(self):
