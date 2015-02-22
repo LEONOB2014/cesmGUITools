@@ -125,6 +125,19 @@ class DataContainer(object):
             new_si = min(self.ny-self.nrows, self.si + row_inc)
             return self.updateView(new_si, self.sj)
 
+    
+    def modifyValue(self, input):
+    	"""
+    	Modify the value fot a particular pixel. The location of the pixel is that
+    	determined by the current position of the cursor.
+    	ARGUMENTS
+    		input - a string containing a float (note: no data validity check is 
+    			    performed on this string)
+    	"""
+        ci, cj = self.viewIndex2GlobalIndex(self.cursor.y, self.cursor.x)
+        self.modified[ci, cj] = 1
+        self.data[ci, cj] = float(input)
+
 
 
     def viewIndex2GlobalIndex(self, i, j):
@@ -300,6 +313,8 @@ class GeoEditor(QMainWindow):
         vbox2.setAlignment(self.infodisplay, Qt.AlignTop)
         vbox2.addLayout(self.infogrid)
 
+        vbox2.addWidget(self.inputbox, Qt.AlignTop)
+
         vbox2.addStretch(1)
         vbox2.addWidget(cmap_label)
         vbox2.addWidget(self.colormaps)
@@ -378,12 +393,11 @@ class GeoEditor(QMainWindow):
 
 
     def update_value(self):
-        print "text received: {0}".format(self.inputbox.text())
-        ci, cj = self.dc.viewIndex2GlobalIndex(self.cursor.y, self.cursor.x)
-        self.dc.modified[ci, cj] = 1
-        print ci, cj
-        self.inputbox.clear()
-        self.main_frame.setFocus()
+    	inp = self.inputbox.text()   # Get the value in the text box
+    	self.dc.modifyValue(inp)     # Modify the data array
+        self.inputbox.clear()        # Now clear the input box
+        self.render_view()           # Render the new view (which now contains the updated value)
+        self.main_frame.setFocus()   # Bring focus back to the view
     
     
         
@@ -434,7 +448,15 @@ class GeoEditor(QMainWindow):
         QMessageBox.about(self, "About", msg.strip())
     
     
-    def save_plot(self): pass
+    def save_plot(self):
+        file_choices = "Text files (*.txt)"
+        
+        path = unicode(QFileDialog.getSaveFileName(self, 'Save File', '', file_choices))
+        if path:
+            # self.canvas.print_figure(path, dpi=self.dpi)
+            np.savetxt(path, self.dc.data, fmt='%5.2f')
+            self.statusBar().showMessage('Saved to %s' % path, 2000)
+
     
     
     def create_action(  self, text, slot=None, shortcut=None, 
