@@ -239,16 +239,20 @@ class GeoEditor(QMainWindow):
         
         # Other GUI controls
         # Information section
+        font = QFont("SansSerif", 14)
 
         # STATISTICS >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
         self.statdisplay = QLabel("Statistics:")
         self.statgrid    = QGridLayout()
         self.statgrid.setSpacing(5)
-        self.statgrid.addWidget(QLabel("Local"),  1, 1, Qt.AlignCenter)
-        self.statgrid.addWidget(QLabel("Global"), 1, 2, Qt.AlignCenter)
+        w = QLabel("Local"); w.setFont(font)
+        self.statgrid.addWidget(w,  1, 1, Qt.AlignCenter)
+        w = QLabel("Global"); w.setFont(font)
+        self.statgrid.addWidget(w, 1, 2, Qt.AlignCenter)
 
         for i, name in enumerate(["Minimum", "Maximum", "Mean"]):
             w = QLabel(name)
+            w.setFont(font)
             self.statgrid.addWidget(w, i+2, 0, Qt.AlignLeft)
 
         self.statsarray = []
@@ -261,16 +265,20 @@ class GeoEditor(QMainWindow):
         for i in range(3):
             self.statgrid.addWidget(self.statsarray[i], i+2, 1, Qt.AlignCenter)
             self.statgrid.addWidget(self.statsarray[i+3], i+2, 2, Qt.AlignCenter)
+            self.statsarray[i].setFont(font)
+            self.statsarray[i+3].setFont(font)
 
         # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
         # PIXEL INFO >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
         self.infodisplay = QLabel("Pixel Information:")
         self.infogrid    = QGridLayout()
         self.infogrid.setSpacing(5)
 
         for i, name in enumerate(["Latitude", "Longitude", "Value"]):
             w = QLabel(name)
+            w.setFont(font)
             self.infogrid.addWidget(w, i+1, 0, Qt.AlignLeft)
 
         self.latdisplay  = QLabel("")
@@ -288,18 +296,27 @@ class GeoEditor(QMainWindow):
         self.pixel_slider.setValue(65)
         self.pixel_slider.setTracking(True)
         self.pixel_slider.setTickPosition(QSlider.TicksBothSides)
-        self.connect(self.pixel_slider, SIGNAL('valueChanged(int)'), self.render_view)
+        self.pixel_slider.valueChanged[int].connect(self.render_view)
         
         # Colorscheme selector
         cmap_label = QLabel('Colorscheme:')
         self.colormaps = QComboBox(self)
         self.colormaps.addItems(self.maps)
         self.colormaps.setCurrentIndex(self.maps.index('Spectral'))
-        self.connect(self.colormaps, SIGNAL("currentIndexChanged(int)"), self.render_view)
-        
+        self.colormaps.currentIndexChanged.connect(self.render_view)
+
         # New value editor
+        hbox = QHBoxLayout()
+        w = QLabel("Enter new value: ")
+        w.setFont(font)
+        hbox.addWidget(w)
         self.inputbox = QLineEdit()
-        self.connect(self.inputbox, SIGNAL('returnPressed ()'), self.update_value)
+        self.inputbox.returnPressed.connect(self.update_value)
+        hbox.addWidget(self.inputbox)
+
+        for item in [self.statdisplay, self.infodisplay, self.latdisplay, self.londisplay, self.valdisplay, pixel_slider_label, cmap_label]:
+            item.setFont(font)
+
         
         vbox = QVBoxLayout()
         vbox.addWidget(self.canvas)
@@ -316,7 +333,8 @@ class GeoEditor(QMainWindow):
         vbox2.setAlignment(self.infodisplay, Qt.AlignTop)
         vbox2.addLayout(self.infogrid)
 
-        vbox2.addWidget(self.inputbox, Qt.AlignTop)
+        # vbox2.addWidget(self.inputbox, Qt.AlignTop)
+        vbox2.addLayout(hbox, Qt.AlignTop)
 
         vbox2.addStretch(1)
         vbox2.addWidget(cmap_label)
