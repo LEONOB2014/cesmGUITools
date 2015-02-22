@@ -46,7 +46,6 @@ class DataContainer(object):
         self.data = np.loadtxt(fname)
         self.orig_data = np.copy(self.data)
         self.ny, self.nx = self.data.shape
-        self.dmin, self.dmax = (-5, 5)
         self.lons = np.linspace(-179.5,179.5,self.nx)
         self.lats = np.linspace(89.5,-89.5,self.ny)
                 
@@ -67,6 +66,7 @@ class DataContainer(object):
         
         self.cursor = DataContainer.Cursor()
     
+    def getViewStatistics(self): return (self.view.min(), self.view.max(), self.view.mean())
 
     def getCursor(self): return self.cursor
 
@@ -98,6 +98,7 @@ class DataContainer(object):
         self.view = self.data[si:si+self.nrows, sj:sj+self.ncols].view()
         self.si = si
         self.sj = sj
+        return self.getViewStatistics()
     
     
     def moveView(self, move):
@@ -105,24 +106,24 @@ class DataContainer(object):
         Moves the view window over the global dataset in response to the L,R,U,D keys. 
         ARGUMENTS
             move : A Qt key value
+        RETURNS
+            a tuple with the min, max, and the mean for the new view
         """
-        ci, cj = self.viewIndex2GlobalIndex(self.cursor.y, self.cursor.x)
-
         col_inc = int(self.ncols*0.25)  # Column increment
         row_inc = int(self.nrows*0.25)  # Row increment
 
         if (move == Qt.Key_L):  # MOVE THE VIEW RIGHT
             new_sj = min(self.nx-self.ncols, self.sj + col_inc)
-            self.updateView(self.si, new_sj)
+            return self.updateView(self.si, new_sj)
         elif (move == Qt.Key_H): # MOVE THE VIEW LEFT
             new_sj = max(0, self.sj - col_inc)
-            self.updateView(self.si, new_sj)
+            return self.updateView(self.si, new_sj)
         elif (move == Qt.Key_K): # MOVE THE VIEW UP
             new_si = max(0, self.si - row_inc)
-            self.updateView(new_si, self.sj)
+            return self.updateView(new_si, self.sj)
         elif (move == Qt.Key_J): # MOVE THE VIEW DOWN
             new_si = min(self.ny-self.nrows, self.si + row_inc)
-            self.updateView(new_si, self.sj)
+            return self.updateView(new_si, self.sj)
 
 
 
@@ -140,25 +141,23 @@ class GeoEditor(QMainWindow):
         ARGUMENTS:
             dwx, dwy - size of the DataContainer in number of array elements
         """
+        fname = "data.txt"
         super(GeoEditor, self).__init__(parent)
-        self.setWindowTitle('GeoEditor (c) Deepak Chandan')
+        self.setWindowTitle('GeoEditor - {0}'.format(fname))
         
         #  Creating a variable that contains all the data
-        self.dc = DataContainer(dwy, dwx, "data.txt")
-        # Set the initial view for the data container class
-        self.dc.updateView(0, 0)
-
-        # Defining a cursor on the data
-        self.cursor = self.dc.getCursor()
-
-        # The Rectangle object on the world map
-        self.prvrect = None
+        self.dc = DataContainer(dwy, dwx, fname)
+        
+        self.cursor = self.dc.getCursor()  # Defining a cursor on the data
+        self.prvrect = None  # The Rectangle object on the world map
 
         self.maps = mpl.cm.datad.keys()  # The names of colormaps available
         self.maps.sort() # Sorting them alphabetically for ease of use
 
         self.create_menu()
         self.create_main_window()
+
+        self.set_stats_info(self.dc.updateView(0, 0))  # Set the initial view for the data container class
 
         self.draw_preview_worldmap()
         self.render_view()
@@ -179,7 +178,7 @@ class GeoEditor(QMainWindow):
             # Pressing escape to refocus back to the main frame
             self.main_frame.setFocus()
         elif e.key() in [Qt.Key_H, Qt.Key_J, Qt.Key_K, Qt.Key_L]:
-            self.dc.moveView(e.key())
+            self.set_stats_info(self.dc.moveView(e.key()))
             self.render_view()
             self.draw_preview_rectangle()
         else:
@@ -205,8 +204,8 @@ class GeoEditor(QMainWindow):
         self.preview = FigureCanvas(self.preview_fig)
         self.preview.setParent(self.preview_frame)
         self.preview_axes = self.preview_fig.add_subplot(111)
-        self.preview_axes.get_xaxis().set_visible(False)
-        self.preview_axes.get_yaxis().set_visible(False)
+        # self.preview_axes.get_xaxis().set_visible(False)
+        # self.preview_axes.get_yaxis().set_visible(False)
         
         self.preview_fig.canvas.mpl_connect('button_press_event', self.onclick)
         
@@ -224,15 +223,52 @@ class GeoEditor(QMainWindow):
         
         # Other GUI controls
         # Information section
+
+        # STATISTICS >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+        self.statdisplay = QLabel("Statistics:")
+        self.statgrid    = QGridLayout()
+        self.statgrid.setSpacing(5)
+        self.statgrid.addWidget(QLabel("Local"),  1, 1, Qt.AlignCenter)
+        self.statgrid.addWidget(QLabel("Global"), 1, 2, Qt.AlignCenter)
+
+        for i, name in enumerate(["Minimum", "Maximum", "Mean"]):
+            w = QLabel(name)
+            self.statgrid.addWidget(w, i+2, 0, Qt.AlignLeft)
+
+        self.statsarray = []
+        for i in range(6): self.statsarray.append(QLabel(''))
+
+        self.statsarray[3].setText("{0:5.2f}".format(self.dc.data.min()))
+        self.statsarray[4].setText("{0:5.2f}".format(self.dc.data.max()))
+        self.statsarray[5].setText("{0:5.2f}".format(self.dc.data.mean()))
+
+        for i in range(3):
+            self.statgrid.addWidget(self.statsarray[i], i+2, 1, Qt.AlignCenter)
+            self.statgrid.addWidget(self.statsarray[i+3], i+2, 2, Qt.AlignCenter)
+
+        # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+        # PIXEL INFO >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
         self.infodisplay = QLabel("Pixel Information:")
-        self.latdisplay  = QLabel("Latitude   : ")
-        self.londisplay  = QLabel("Longitude: ")
-        self.valdisplay  = QLabel("Value       : ")
-        
+        self.infogrid    = QGridLayout()
+        self.infogrid.setSpacing(5)
+
+        for i, name in enumerate(["Latitude", "Longitude", "Value"]):
+            w = QLabel(name)
+            self.infogrid.addWidget(w, i+1, 0, Qt.AlignLeft)
+
+        self.latdisplay  = QLabel("")
+        self.londisplay  = QLabel("")
+        self.valdisplay  = QLabel("")
+        for i,w in enumerate([self.latdisplay, self.londisplay, self.valdisplay]):
+            self.infogrid.addWidget(w, i+1, 1, Qt.AlignLeft)
+        # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+
         # Pixel size control slider
         pixel_slider_label = QLabel('Pixel size:')
         self.pixel_slider = QSlider(Qt.Horizontal)
-        self.pixel_slider.setRange(1, 100)
+        self.pixel_slider.setRange(50, 100)
         self.pixel_slider.setValue(65)
         self.pixel_slider.setTracking(True)
         self.pixel_slider.setTickPosition(QSlider.TicksBothSides)
@@ -256,10 +292,14 @@ class GeoEditor(QMainWindow):
         vbox2 = QVBoxLayout()
         vbox2.addWidget(self.preview)
         
-        for w in [self.infodisplay, self.latdisplay, self.londisplay, self.valdisplay, self.inputbox]:
-            w.setFixedWidth(150)
-            vbox2.addWidget(w)
-            vbox2.setAlignment(w, Qt.AlignTop)
+        vbox2.addWidget(self.statdisplay)
+        vbox2.setAlignment(self.statdisplay, Qt.AlignTop)
+        vbox2.addLayout(self.statgrid)
+
+        vbox2.addWidget(self.infodisplay)
+        vbox2.setAlignment(self.infodisplay, Qt.AlignTop)
+        vbox2.addLayout(self.infogrid)
+
         vbox2.addStretch(1)
         vbox2.addWidget(cmap_label)
         vbox2.addWidget(self.colormaps)
@@ -283,12 +323,11 @@ class GeoEditor(QMainWindow):
         This function draws the world map in the preview window on the top right hand corner 
         of the application.
         """
-        m = Basemap(projection='cyl', lon_0=0,llcrnrlat=-90,urcrnrlat=90,\
+        m = Basemap(projection='cyl', lon_0=0, llcrnrlat=-90,urcrnrlat=90,\
             llcrnrlon=-180,urcrnrlon=180,resolution='c', ax=self.preview_axes)
         m.drawcoastlines(linewidth=0.5)
         self.preview_axes.set_xlim([-180,180])
         self.preview_axes.set_ylim([-90,90])
-        self.preview.draw()
         self.draw_preview_rectangle()
         self.preview_fig.tight_layout()
     
@@ -301,10 +340,8 @@ class GeoEditor(QMainWindow):
         if self.prvrect: self.prvrect.remove()
         self.prvrect = mpatches.Rectangle((self.dc.lons[self.dc.sj], 
                                    self.dc.lats[self.dc.si+self.dc.nrows-1]), 
-                                   self.dc.dlon, 
-                                   self.dc.dlat, 
-                                   linewidth=1, 
-                                   facecolor='g', alpha=0.3)
+                                   self.dc.dlon, self.dc.dlat, 
+                                   linewidth=1, facecolor='g', alpha=0.3)
         self.preview_axes.add_patch(self.prvrect)
         self.preview.draw()
         
@@ -313,11 +350,8 @@ class GeoEditor(QMainWindow):
         if self.cursor.cursor and (not noremove): self.cursor.cursor.remove()
         _cx, _cy = self.cursor.x+0.5, self.cursor.y+0.5
         self.cursor.cursor = self.axes.scatter(_cx, _cy, 
-                                        s=self.pixel_slider.value(), 
-                                        marker='s', 
-                                        edgecolor="k", 
-                                        facecolor='none', 
-                                        linewidth=2)  
+                             s=self.pixel_slider.value(), 
+                             marker='s', edgecolor="k", facecolor='none', linewidth=2)  
         self.set_information(_cy, _cx)        
         self.canvas.draw()
         
@@ -360,10 +394,21 @@ class GeoEditor(QMainWindow):
             i, j : the local (i.e. DataContainer) 0-based indices for the element
         """
         i_global, j_global = self.dc.viewIndex2GlobalIndex(i, j) # Convert local indices to global indices
-        self.latdisplay.setText("Latitude   : {0}".format(self.dc.lats[i_global]))
-        self.londisplay.setText("Longitude: {0}".format(self.dc.lons[j_global]))
-        self.valdisplay.setText("Value       : {0}".format(self.dc.data[i_global, j_global]))
+        self.latdisplay.setText("{0}".format(self.dc.lats[i_global]))
+        self.londisplay.setText("{0}".format(self.dc.lons[j_global]))
+        self.valdisplay.setText("{0}".format(self.dc.data[i_global, j_global]))
     
+
+    def set_stats_info(self, s):
+        """
+        Updates the statistics display panel with the stats for the view.
+        ARGUMENTS
+            s - a tuple with the min, max and mean of the view
+        """
+        self.statsarray[0].setText("{0:5.2f}".format(s[0]))
+        self.statsarray[1].setText("{0:5.2f}".format(s[1]))
+        self.statsarray[2].setText("{0:5.2f}".format(s[2]))
+
 
     def onclick(self, event):
         # 1. Get the global row, column indices of the point where mouse was clicked
@@ -372,7 +417,7 @@ class GeoEditor(QMainWindow):
         py = np.where(abs(self.dc.lats - event.ydata) < 0.5)[0][0]
         print px
         # 2. Update the view data array 
-        self.dc.updateView(py, px)
+        self.set_stats_info(self.dc.updateView(py, px))
         # 3. Render the view
         self.render_view()
         # 4. Set the cursor to be at the top-left corner
@@ -441,9 +486,9 @@ class GeoEditor(QMainWindow):
 def main():
     app = QApplication(sys.argv)
     mw = GeoEditor(dwx=50,dwy=50)
-    mw.show()
-    mw.raise_()
-    app.exec_()
+    mw.show()     # Render the window
+    mw.raise_()   # Bring the PyQt4 window to the front
+    app.exec_()   # Run the application loop
 
 
 if __name__ == "__main__":
