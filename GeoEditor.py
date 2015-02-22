@@ -395,6 +395,7 @@ class GeoEditor(QMainWindow):
     def update_value(self):
     	inp = self.inputbox.text()   # Get the value in the text box
     	self.dc.modifyValue(inp)     # Modify the data array
+        self.set_stats_info(self.dc.getViewStatistics()) 
         self.inputbox.clear()        # Now clear the input box
         self.render_view()           # Render the new view (which now contains the updated value)
         self.main_frame.setFocus()   # Bring focus back to the view
