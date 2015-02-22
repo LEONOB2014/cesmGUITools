@@ -164,6 +164,9 @@ class GeoEditor(QMainWindow):
         self.cursor = self.dc.getCursor()  # Defining a cursor on the data
         self.prvrect = None  # The Rectangle object on the world map
 
+        self.save_fname = None
+        self.save_fmt   = None
+
         self.maps = mpl.cm.datad.keys()  # The names of colormaps available
         self.maps.sort() # Sorting them alphabetically for ease of use
 
@@ -449,20 +452,28 @@ class GeoEditor(QMainWindow):
         QMessageBox.about(self, "About", msg.strip())
     
     
-    def save_plot(self):
+    def save_data(self):
+        """
+        Saves the data array to a text file. It first opens a window to allow the user to select the
+        save filename, and then prompts the user to enter a numpy save format. It remembers these 
+        information so further calls to save do not prompt for this information. 
+        """
         file_choices = "Text files (*.txt)"
-        
-        path = unicode(QFileDialog.getSaveFileName(self, 'Save File', '', file_choices))
-        if path:
-            # self.canvas.print_figure(path, dpi=self.dpi)
-            np.savetxt(path, self.dc.data, fmt='%5.2f')
-            self.statusBar().showMessage('Saved to %s' % path, 2000)
+        if not self.save_fname:
+            self.save_fname = unicode(QFileDialog.getSaveFileName(self, 'Save File', '', file_choices))
+            self.save_fmt, ok = QInputDialog().getText(self, 'Output format', "Numpy save format:", text="%5.2f")
+            if (not ok):
+                self.statusBar().showMessage('Save cancelled', 2000)
+                self.save_fname = None
+                return
+        np.savetxt(self.save_fname, self.dc.data, fmt=self.save_fmt)
+        self.statusBar().showMessage('Saved to %s' % self.save_fname, 2000)
 
     
     
-    def create_action(  self, text, slot=None, shortcut=None, 
-                        icon=None, tip=None, checkable=False, 
-                        signal="triggered()"):
+    def create_action(self, text, slot=None, shortcut=None, 
+                      icon=None, tip=None, checkable=False, 
+                      signal="triggered()"):
         action = QAction(text, self)
         if icon is not None:
             action.setIcon(QIcon(":/%s.png" % icon))
@@ -489,21 +500,28 @@ class GeoEditor(QMainWindow):
     def create_menu(self):        
         self.file_menu = self.menuBar().addMenu("&File")
         
-        load_file_action = self.create_action("&Save plot",
-            shortcut="Ctrl+S", slot=self.save_plot, 
-            tip="Save the plot")
-        quit_action = self.create_action("&Quit", slot=self.close, 
-            shortcut="Ctrl+Q", tip="Close the application")
+        load_file_action = self.create_action("&Save Data",
+            shortcut="Ctrl+S", slot=self.save_data, 
+            tip="Save the data array")
         
-        self.add_actions(self.file_menu, 
-            (load_file_action, None, quit_action))
-        
+        self.add_actions(self.file_menu, (load_file_action,))
+
         self.help_menu = self.menuBar().addMenu("&Help")
         about_action = self.create_action("&About", 
             shortcut='F1', slot=self.on_about, 
-            tip='About the demo')
-        
+            tip='About GeoEditor')
         self.add_actions(self.help_menu, (about_action,))
+
+
+    def closeEvent(self, event):
+    	reply = QMessageBox.question(self, 'Message', "There are unsaved changes. Are you sure you want to quit?", 
+    		    QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+
+    	if reply == QMessageBox.Yes:
+    		event.accept()
+    	else:
+    		event.ignore()
+
     
     
 def main():
