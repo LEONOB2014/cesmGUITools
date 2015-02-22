@@ -108,52 +108,21 @@ class DataContainer(object):
         """
         ci, cj = self.viewIndex2GlobalIndex(self.cursor.y, self.cursor.x)
 
-        col_inc = int(self.ncols*0.15)  # Column increment
-        row_inc = int(self.nrows*0.15)  # Row increment
+        col_inc = int(self.ncols*0.25)  # Column increment
+        row_inc = int(self.nrows*0.25)  # Row increment
 
-        if (move == Qt.Key_L):
-            # MOVE THE VIEW RIGHT
-            print self.nx-self.ncols, self.sj + col_inc
-            new_sj = min(self.nx-self.ncols-1, self.sj + col_inc)
-            if cj < new_sj:
-                return (-1, "Move cursor to the right")
-            elif new_sj == (self.nx-self.ncols-1):
-                return (-1, "At right boundary")
-            else:
-                self.updateView(self.si, new_sj)
-                self.cursor.x -= col_inc
-                return (0, None)
-        elif (move == Qt.Key_H):
-            # MOVE THE VIEW LEFT
+        if (move == Qt.Key_L):  # MOVE THE VIEW RIGHT
+            new_sj = min(self.nx-self.ncols, self.sj + col_inc)
+            self.updateView(self.si, new_sj)
+        elif (move == Qt.Key_H): # MOVE THE VIEW LEFT
             new_sj = max(0, self.sj - col_inc)
-            if cj > (new_sj + self.ncols):
-                return (-1, "Move cursor to the left")
-            elif new_sj == 0:
-                return (-1, "At left boundary")
-            else:
-                self.updateView(self.si, new_sj)
-                self.cursor.x += col_inc
-                return (0, None)
-        elif (move == Qt.Key_K):
-            # MOVE THE VIEW UP
+            self.updateView(self.si, new_sj)
+        elif (move == Qt.Key_K): # MOVE THE VIEW UP
             new_si = max(0, self.si - row_inc)
-            if ci > (new_si + self.nrows):
-                return (-1, "Move cursor up")
-            elif new_si == 0:
-                return (-1, "At top boundary")
-            else:
-                self.updateView(new_si, self.sj)
-                self.cursor.y += row_inc
-                return (0, None)
-        elif (move == Qt.Key_J):
-            # MOVE THE VIEW DOWN
-            new_si = self.si + col_inc
-            if ci < new_si:
-                return (-1, "Move cursor down")
-            else:
-                self.updateView(new_si, self.sj)
-                self.cursor.y -= row_inc
-                return (0, None)
+            self.updateView(new_si, self.sj)
+        elif (move == Qt.Key_J): # MOVE THE VIEW DOWN
+            new_si = min(self.ny-self.nrows, self.si + row_inc)
+            self.updateView(new_si, self.sj)
 
 
 
@@ -210,12 +179,9 @@ class GeoEditor(QMainWindow):
             # Pressing escape to refocus back to the main frame
             self.main_frame.setFocus()
         elif e.key() in [Qt.Key_H, Qt.Key_J, Qt.Key_K, Qt.Key_L]:
-            retcode, message = self.dc.moveView(e.key())
-            if (retcode == -1):
-                self.statusBar().showMessage(message)
-            else:
-                self.render_view()
-                self.draw_preview_rectangle()
+            self.dc.moveView(e.key())
+            self.render_view()
+            self.draw_preview_rectangle()
         else:
             self.dc.updateCursorPosition(e)
             self.draw_cursor()
@@ -333,16 +299,13 @@ class GeoEditor(QMainWindow):
         in the view, in the preview window.
         """
         if self.prvrect: self.prvrect.remove()
-        patches = []
-        rect = mpatches.Rectangle((self.dc.lons[self.dc.sj], 
-                                   self.dc.lats[self.dc.si+self.dc.nrows]), 
-                                   self.dc.dlat, 
+        self.prvrect = mpatches.Rectangle((self.dc.lons[self.dc.sj], 
+                                   self.dc.lats[self.dc.si+self.dc.nrows-1]), 
                                    self.dc.dlon, 
-                                   linewidth=2, 
-                                   facecolor='k')
-        patches.append(rect)
-        self.prvrect = PatchCollection(patches, alpha=0.3)
-        self.preview_axes.add_collection(self.prvrect)
+                                   self.dc.dlat, 
+                                   linewidth=1, 
+                                   facecolor='g', alpha=0.3)
+        self.preview_axes.add_patch(self.prvrect)
         self.preview.draw()
         
     
