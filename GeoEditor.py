@@ -479,7 +479,8 @@ class GeoEditor(QMainWindow):
         file_choices = "Text files (*.txt)"
         if not self.save_fname:
             self.save_fname = unicode(QFileDialog.getSaveFileName(self, 'Save File', '', file_choices))
-            self.save_fmt, ok = QInputDialog().getText(self, 'Output format', "Numpy save format:", text="%5.2f")
+            fmt, ok = QInputDialog().getText(self, 'Output format', "Numpy save format:", text="%5.2f")
+            self.save_fmt = str(fmt)
             if (not ok):
                 self.statusBar().showMessage('Save cancelled', 2000)
                 self.save_fname = None
