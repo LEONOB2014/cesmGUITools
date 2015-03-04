@@ -378,17 +378,28 @@ class GeoEditor(QMainWindow):
         This function draws the Rectangle, which indicates the current region being shown
         in the view, in the preview window.
         """
+        # If a rectangle object exists, then remove it before drawing a new one
         if self.prvrect: self.prvrect.remove()
-        self.prvrect = mpatches.Rectangle((self.dc.lons[self.dc.sj], 
-                                   self.dc.lats[self.dc.si+self.dc.nrows-1]), 
-                                   self.dc.dlon, self.dc.dlat, 
-                                   linewidth=1, facecolor='g', alpha=0.3)
+
+        rect_llc_col = self.dc.lons[self.dc.sj]
+        rect_llc_row = self.dc.lats[min(self.dc.si+self.dc.nrows-1, self.dc.ny-1)]
+        # print self.dc.si+self.dc.nrows-1, self.dc.ny-1
+        # TODO: Change the value of dlon and dlat 
+
+        self.prvrect = mpatches.Rectangle((rect_llc_col, rect_llc_row), 
+                           self.dc.dlon, self.dc.dlat, 
+                           linewidth=1, facecolor='g', alpha=0.3)
+
+
         self.preview_axes.add_patch(self.prvrect)
         self.preview.draw()
         
     
     def draw_cursor(self, noremove=False):
         if self.cursor.marker and (not noremove): self.cursor.marker.remove()
+        # The increment by 0.5 below is done so that the center of the marker is shifted 
+        # so that the top left corner of the square marker conicides with the top right corner
+        # of each pixel. The value of 0.5 comes simply because each pixel are offset by 1 in each dimension.
         _cx, _cy = self.cursor.x+0.5, self.cursor.y+0.5
         self.cursor.marker = self.axes.scatter(_cx, _cy, 
                              s=self.pixel_slider.value(), 
@@ -453,10 +464,11 @@ class GeoEditor(QMainWindow):
 
     def onclick(self, event):
         # 1. Get the global row, column indices of the point where mouse was clicked
-        print event.xdata
+        print event.xdata, event.ydata
+        if (event.xdata == None) or (event.ydata == None): return
         px = np.where(abs(self.dc.lons - event.xdata) < 0.5)[0][0]
         py = np.where(abs(self.dc.lats - event.ydata) < 0.5)[0][0]
-        print px
+        # print px, py
         # 2. Update the view data array 
         self.set_stats_info(self.dc.updateView(py, px))
         # 3. Render the view
