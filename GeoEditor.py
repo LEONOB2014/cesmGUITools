@@ -191,10 +191,6 @@ class GeoEditor(QMainWindow):
             self.inputbox.setFocus()
         elif e.key() == Qt.Key_C:
             self.colormaps.setFocus()
-        elif e.key() == Qt.Key_Plus:
-            self.pixel_slider.setValue(self.pixel_slider.value()+2)
-        elif e.key() == Qt.Key_Minus:
-            self.pixel_slider.setValue(self.pixel_slider.value()-2)
         elif e.key() == Qt.Key_Escape:
             # Pressing escape to refocus back to the main frame
             self.main_frame.setFocus()
@@ -293,15 +289,6 @@ class GeoEditor(QMainWindow):
             self.infogrid.addWidget(w, i+1, 1, Qt.AlignLeft)
         # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-
-        # Pixel size control slider
-        pixel_slider_label = QLabel('Pixel size:')
-        self.pixel_slider = QSlider(Qt.Horizontal)
-        self.pixel_slider.setRange(50, 100)
-        self.pixel_slider.setValue(65)
-        self.pixel_slider.setTracking(True)
-        self.pixel_slider.setTickPosition(QSlider.TicksBothSides)
-        self.pixel_slider.valueChanged[int].connect(self.render_view)
         
         # Colorscheme selector
         cmap_label = QLabel('Colorscheme:')
@@ -319,7 +306,7 @@ class GeoEditor(QMainWindow):
         self.inputbox.returnPressed.connect(self.update_value)
         hbox.addWidget(self.inputbox)
 
-        for item in [self.statdisplay, self.infodisplay, self.latdisplay, self.londisplay, self.valdisplay, pixel_slider_label, cmap_label]:
+        for item in [self.statdisplay, self.infodisplay, self.latdisplay, self.londisplay, self.valdisplay, cmap_label]:
             item.setFont(font)
 
         
@@ -345,9 +332,6 @@ class GeoEditor(QMainWindow):
         vbox2.addWidget(cmap_label)
         vbox2.addWidget(self.colormaps)
         vbox2.addStretch(1)
-        for w in [pixel_slider_label, self.pixel_slider]:
-            vbox2.addWidget(w)
-            vbox2.setAlignment(w, Qt.AlignBottom)
             
         
         hbox = QHBoxLayout()
@@ -401,8 +385,7 @@ class GeoEditor(QMainWindow):
         # so that the top left corner of the square marker conicides with the top right corner
         # of each pixel. The value of 0.5 comes simply because each pixel are offset by 1 in each dimension.
         _cx, _cy = self.cursor.x+0.5, self.cursor.y+0.5
-        self.cursor.marker = self.axes.scatter(_cx, _cy, 
-                             s=self.pixel_slider.value(), 
+        self.cursor.marker = self.axes.scatter(_cx, _cy, s=65, 
                              marker='s', edgecolor="k", facecolor='none', linewidth=2)  
         self.set_information(_cy, _cx)        
         self.canvas.draw()
