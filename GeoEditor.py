@@ -26,12 +26,12 @@ mpl.rc('axes',edgecolor='w')
 
 class DataContainer(object):
     """
-    The main container class for this application which does the job of storing
-    the map and other related data. 
+    DataContainer: The main container class for this application which does the job
+    of storing the map and other related data as well as the cursor on this data. 
     """
     class Cursor(object):
         def __init__(self):
-            self.cursor = None
+            self.marker = None
             self.x = 0
             self.y = 0
 
@@ -39,8 +39,8 @@ class DataContainer(object):
     def __init__(self, nrows, ncols, fname):
         """
         ARGUMENTS
-            nrows - number of rows in the view
-            ncols - number of columns in the view
+            nrows - number of rows for the view
+            ncols - number of columns for the view
             fname - name of the data file.
         """
         self.data = np.loadtxt(fname)
@@ -52,10 +52,10 @@ class DataContainer(object):
         
         # Datawindow variables
         self.view   = None        # The array (actually a numpy view) that stores the data to be displayed in the main window
-        self.nrows  = nrows
-        self.ncols  = ncols
+        self.nrows  = nrows       # Number of rows to display in the main windows (the 'view')
+        self.ncols  = ncols       # Number of cols to display in the main windows
         self.si     = None        # 0-based row index of the first element 
-        self.sj     = None
+        self.sj     = None        # 0-based col index of the first element 
         
         self.dlat = self.lats[0] - self.lats[self.nrows]
         self.dlon = abs(self.lons[0] - self.lons[self.ncols])
@@ -64,11 +64,16 @@ class DataContainer(object):
         self.longs_grid, self.lats_grid = np.meshgrid(self.lons, self.lats)
         self.modified = np.zeros((self.ny, self.nx))
         
+        # A cursor object on the view
         self.cursor = DataContainer.Cursor()
     
+
+
     def getViewStatistics(self): return (self.view.min(), self.view.max(), self.view.mean())
 
+
     def getCursor(self): return self.cursor
+
 
     def updateCursorPosition(self, event):
         """
@@ -91,9 +96,9 @@ class DataContainer(object):
     
     def updateView(self, si, sj):
         """
-        Updates the view on the global data. 
+        Updates the data for the view. 
         ARGUMENTS
-            si, sj - the global i,j indices of the top left corner of the view
+            si, sj - the global 0-based i,j indices of the top left corner of the view
         """
         self.view = self.data[si:si+self.nrows, sj:sj+self.ncols].view()
         self.si = si
@@ -383,9 +388,9 @@ class GeoEditor(QMainWindow):
         
     
     def draw_cursor(self, noremove=False):
-        if self.cursor.cursor and (not noremove): self.cursor.cursor.remove()
+        if self.cursor.marker and (not noremove): self.cursor.marker.remove()
         _cx, _cy = self.cursor.x+0.5, self.cursor.y+0.5
-        self.cursor.cursor = self.axes.scatter(_cx, _cy, 
+        self.cursor.marker = self.axes.scatter(_cx, _cy, 
                              s=self.pixel_slider.value(), 
                              marker='s', edgecolor="k", facecolor='none', linewidth=2)  
         self.set_information(_cy, _cx)        
