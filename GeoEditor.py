@@ -45,12 +45,13 @@ class DataContainer(object):
 			fname - name of the data file.
 		"""
 		self.__read_nc_file(fname)
-		# self.data = np.loadtxt(fname)
 		self.orig_data = np.copy(self.data)
 		self.ny, self.nx = self.data.shape
-		# self.lons = np.linspace(-179.5,179.5,self.nx)
-		# self.lats = np.linspace(89.5,-89.5,self.ny)
-				
+		
+		if (self.lons.min() < 0) and (self.lons.max() > 0):
+			self.lon_modulo = 180
+		else:
+			self.lon_modulo = 360
 		
 		# Datawindow variables
 		self.view   = None        # The array (actually a numpy view) that stores the data to be displayed in the main window
@@ -191,7 +192,7 @@ class GeoEditor(QMainWindow):
 		ARGUMENTS:
 			dwx, dwy - size of the DataContainer in number of array elements
 		"""
-		fname = "data.nc"
+		fname = "data_gauss.nc"
 		super(GeoEditor, self).__init__(parent)
 		self.setWindowTitle('GeoEditor - {0}'.format(fname))
 		
@@ -253,8 +254,6 @@ class GeoEditor(QMainWindow):
 		self.preview = FigureCanvas(self.preview_fig)
 		self.preview.setParent(self.preview_frame)
 		self.preview_axes = self.preview_fig.add_subplot(111)
-		# self.preview_axes.get_xaxis().set_visible(False)
-		# self.preview_axes.get_yaxis().set_visible(False)
 		
 		self.preview_fig.canvas.mpl_connect('button_press_event', self.onclick)
 		
@@ -380,10 +379,16 @@ class GeoEditor(QMainWindow):
 		This function draws the world map in the preview window on the top right hand corner 
 		of the application.
 		"""
-		m = Basemap(projection='cyl', lon_0=0, llcrnrlat=-90,urcrnrlat=90,\
-			llcrnrlon=-180,urcrnrlon=180,resolution='c', ax=self.preview_axes)
+		if self.dc.lon_modulo == 180:
+			m = Basemap(projection='cyl', lon_0=0, llcrnrlat=-90,urcrnrlat=90,\
+				llcrnrlon=-180,urcrnrlon=180,resolution='c', ax=self.preview_axes)
+			self.preview_axes.set_xlim([-180,180])
+		else:
+			m = Basemap(projection='cyl', lon_0=180, llcrnrlat=-90,urcrnrlat=90,\
+				llcrnrlon=0,urcrnrlon=360,resolution='c', ax=self.preview_axes)
+			self.preview_axes.set_xlim([0,360])
+		
 		m.drawcoastlines(linewidth=0.5)
-		self.preview_axes.set_xlim([-180,180])
 		self.preview_axes.set_ylim([-90,90])
 		self.draw_preview_rectangle()
 		self.preview_fig.tight_layout()
