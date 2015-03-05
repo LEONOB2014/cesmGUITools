@@ -60,9 +60,6 @@ class DataContainer(object):
 		self.si     = None        # 0-based row index of the first element 
 		self.sj     = None        # 0-based col index of the first element 
 		
-		self.dlat = self.lats[0] - self.lats[self.nrows]
-		self.dlon = abs(self.lons[0] - self.lons[self.ncols])
-
 		# Tracking which elements are changed
 		self.longs_grid, self.lats_grid = np.meshgrid(self.lons, self.lats)
 		self.modified = np.zeros((self.ny, self.nx))
@@ -402,16 +399,15 @@ class GeoEditor(QMainWindow):
 		# If a rectangle object exists, then remove it before drawing a new one
 		if self.prvrect: self.prvrect.remove()
 
-		rect_llc_col = self.dc.lons[self.dc.sj]
-		rect_llc_row = self.dc.lats[min(self.dc.si+self.dc.nrows-1, self.dc.ny-1)]
-		# print self.dc.si+self.dc.nrows-1, self.dc.ny-1
-		# TODO: Change the value of dlon and dlat 
+		# rect_llc_x and rect_llc_y are the x and y values of the lower left corner of the preview rectangle.
+		rect_llc_x = self.dc.lons[self.dc.sj]
+		rect_llc_y = self.dc.lats[min(self.dc.si+self.dc.nrows-1, self.dc.ny-1)]
 
-		self.prvrect = mpatches.Rectangle((rect_llc_col, rect_llc_row), 
-						   self.dc.dlon, self.dc.dlat, 
-						   linewidth=1, facecolor='g', alpha=0.3)
-
-
+		# dlon and dlat are the width and height of the preview rectangle
+		dlon = abs(rect_llc_x - self.dc.lons[min(self.dc.sj+self.dc.ncols-1, self.dc.nx-1)])
+		dlat = self.dc.lats[self.dc.si] - rect_llc_y
+		
+		self.prvrect = mpatches.Rectangle((rect_llc_x, rect_llc_y), dlon, dlat, linewidth=1, facecolor='g', alpha=0.3)
 		self.preview_axes.add_patch(self.prvrect)
 		self.preview.draw()
 		
@@ -484,11 +480,9 @@ class GeoEditor(QMainWindow):
 
 	def onclick(self, event):
 		# 1. Get the global row, column indices of the point where mouse was clicked
-		print event.xdata, event.ydata
 		if (event.xdata == None) or (event.ydata == None): return
 		px = np.where(abs(self.dc.lons - event.xdata) < 0.5)[0][0]
 		py = np.where(abs(self.dc.lats - event.ydata) < 0.5)[0][0]
-		# print px, py
 		# 2. Update the view data array 
 		self.set_stats_info(self.dc.updateView(py, px))
 		# 3. Render the view
