@@ -23,6 +23,8 @@ from matplotlib.collections import PatchCollection
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt4agg import NavigationToolbar2QT as NavigationToolbar
 
+from Trident.plots.plot_utils import topography_cmap, make_balanced
+
 mpl.rc('axes',edgecolor='w')
 
 class DataContainer(object):
@@ -184,12 +186,11 @@ class DataContainer(object):
 
 class GeoEditor(QMainWindow):    
 
-	def __init__(self, parent=None, dwx=160, dwy=160):
+	def __init__(self, fname, parent=None, dwx=60, dwy=60):
 		"""
 		ARGUMENTS:
 			dwx, dwy - size of the DataContainer in number of array elements
 		"""
-		fname = "data_gauss.nc"
 		super(GeoEditor, self).__init__(parent)
 		self.setWindowTitle('GeoEditor - {0}'.format(fname))
 		
@@ -418,7 +419,7 @@ class GeoEditor(QMainWindow):
 		# so that the top left corner of the square marker conicides with the top right corner
 		# of each pixel. The value of 0.5 comes simply because each pixel are offset by 1 in each dimension.
 		_cx, _cy = self.cursor.x+0.5, self.cursor.y+0.5
-		self.cursor.marker = self.axes.scatter(_cx, _cy, s=65, 
+		self.cursor.marker = self.axes.scatter(_cx, _cy, s=55, 
 							 marker='s', edgecolor="k", facecolor='none', linewidth=2)  
 		self.set_information(_cy, _cx)        
 		self.canvas.draw()
@@ -427,9 +428,11 @@ class GeoEditor(QMainWindow):
 	
 	def render_view(self):
 		self.axes.clear()
-		cmap = mpl.cm.get_cmap(self.maps[self.colormaps.currentIndex()])
-		# self.axes.pcolor(self.dc.view, cmap=cmap, edgecolors='w', linewidths=0.5, vmin=self.dc.dmin, vmax=self.dc.dmax)
-		self.axes.pcolor(self.dc.view, cmap=cmap, edgecolors='w', linewidths=0.5)
+		# Either select the colormap through the combo box or specify a custom colormap
+		# cmap = mpl.cm.get_cmap(self.maps[self.colormaps.currentIndex()])
+		cmap   = topography_cmap(80, end=0.85)
+		ll, ul = make_balanced(ll=-7.)
+		self.axes.pcolor(self.dc.view, cmap=cmap, edgecolors='w', linewidths=0.5, vmin=ll, vmax=ul)
 		
 		# Setting the axes limits. This helps in setting the right orientation of the plot
 		# and in clontrolling how much extra space we want around the scatter plot.
@@ -576,7 +579,7 @@ class GeoEditor(QMainWindow):
 	
 def main():
 	app = QApplication(sys.argv)
-	mw = GeoEditor(dwx=50,dwy=50)
+	mw = GeoEditor("data.nc")
 	mw.show()     # Render the window
 	mw.raise_()   # Bring the PyQt4 window to the front
 	app.exec_()   # Run the application loop
