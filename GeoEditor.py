@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 """
 GeoEditor.py
 
@@ -8,7 +10,7 @@ Author : Deepak Chandan
 Date   : February 17th, 2015
 """
 
-import sys
+import sys, argparse
 from netCDF4 import Dataset
 import numpy as np
 from PyQt4.QtCore import *
@@ -431,7 +433,7 @@ class GeoEditor(QMainWindow):
 		# Either select the colormap through the combo box or specify a custom colormap
 		# cmap = mpl.cm.get_cmap(self.maps[self.colormaps.currentIndex()])
 		cmap   = topography_cmap(80, end=0.85)
-		ll, ul = make_balanced(ll=-7.)
+		ll, ul = make_balanced(ll=-7., silent=True)
 		self.axes.pcolor(self.dc.view, cmap=cmap, edgecolors='w', linewidths=0.5, vmin=ll, vmax=ul)
 		
 		# Setting the axes limits. This helps in setting the right orientation of the plot
@@ -578,8 +580,14 @@ class GeoEditor(QMainWindow):
 	
 	
 def main():
-	app = QApplication(sys.argv)
-	mw = GeoEditor("data.nc")
+	app = QApplication([])
+
+	parser = argparse.ArgumentParser(description='GeoEditor', add_help=False)
+	parser.add_argument('fname', nargs=1, type=str, help='name of the netcdf4 data file')
+	parser.add_argument('-s', nargs=1, type=int, help='size of the view in number of pixels', default=[60])
+	args = parser.parse_args()
+
+	mw = GeoEditor(args.fname[0], dwx=args.s[0], dwy=args.s[0])
 	mw.show()     # Render the window
 	mw.raise_()   # Bring the PyQt4 window to the front
 	app.exec_()   # Run the application loop
