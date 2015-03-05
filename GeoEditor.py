@@ -41,14 +41,16 @@ class DataContainer(object):
 			self.y = 0
 
 
-	def __init__(self, nrows, ncols, fname):
+	def __init__(self, nrows, ncols, fname, datavar):
 		"""
 		ARGUMENTS
 			nrows - number of rows for the view
 			ncols - number of columns for the view
 			fname - name of the data file.
 		"""
-		self.__read_nc_file(fname)
+		self.fname = fname
+		self.datavar = datavar
+		self.__read_nc_file()
 		self.orig_data = np.copy(self.data)
 		self.ny, self.nx = self.data.shape
 		
@@ -72,20 +74,15 @@ class DataContainer(object):
 		self.cursor = DataContainer.Cursor()
 	
 
-	def __read_nc_file(self, fname):
+	def __read_nc_file(self):
 		self.lons = None
 		self.lats = None
-		ncfile = Dataset(fname, "r", format="NETCDF4")
+		ncfile = Dataset(self.fname, "r", format="NETCDF4")
 		for var in ["longitudes", "longitude", "lons"]:
 			try:
 				self.lons = ncfile.variables[var][:]
 			except:
 				pass
-		# for var in ["lattudes", "laitude", "lts"]:
-		# 	try:
-		# 		self.lats = ncfile.variables[var][:]
-		# 	except:
-		# 		pass
 
 		for var in ["latitudes", "latitude", "lats"]:
 			try:
@@ -98,7 +95,7 @@ class DataContainer(object):
 			QMessageBox.critical(QWidget(), 'Error', "Latitude and or longitude variables not found.", QMessageBox.Ok)
 			sys.exit()
 			
-		self.data = ncfile.variables["data"][:,:]
+		self.data = ncfile.variables[self.datavar][:,:]
 		ncfile.close()
 
 
@@ -188,16 +185,18 @@ class DataContainer(object):
 
 class GeoEditor(QMainWindow):    
 
-	def __init__(self, fname, parent=None, dwx=60, dwy=60):
+	def __init__(self, fname, datavar, dwx=60, dwy=60):
 		"""
 		ARGUMENTS:
+			fname    - Name of the netcdf4 file
+			datavar  - Name of the data variable in the file for which to plot
 			dwx, dwy - size of the DataContainer in number of array elements
 		"""
-		super(GeoEditor, self).__init__(parent)
+		super(GeoEditor, self).__init__(None)
 		self.setWindowTitle('GeoEditor - {0}'.format(fname))
 		
 		#  Creating a variable that contains all the data
-		self.dc = DataContainer(dwy, dwx, fname)
+		self.dc = DataContainer(dwy, dwx, fname, datavar)
 		
 		self.cursor = self.dc.getCursor()  # Defining a cursor on the data
 		self.prvrect = None  # The Rectangle object on the world map
@@ -584,10 +583,11 @@ def main():
 
 	parser = argparse.ArgumentParser(description='GeoEditor', add_help=False)
 	parser.add_argument('fname', nargs=1, type=str, help='name of the netcdf4 data file')
-	parser.add_argument('-s', nargs=1, type=int, help='size of the view in number of pixels', default=[60])
+	parser.add_argument('var',   nargs=1, type=str, help='name of the variable in the netcdf4 file')
+	parser.add_argument('-s',    nargs=1, type=int, help='size of the view in number of pixels', default=[60])
 	args = parser.parse_args()
 
-	mw = GeoEditor(args.fname[0], dwx=args.s[0], dwy=args.s[0])
+	mw = GeoEditor(args.fname[0], args.var[0], dwx=args.s[0], dwy=args.s[0])
 	mw.show()     # Render the window
 	mw.raise_()   # Bring the PyQt4 window to the front
 	app.exec_()   # Run the application loop
