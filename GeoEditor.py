@@ -48,12 +48,14 @@ class DataContainer(object):
 			ncols - number of columns for the view
 			fname - name of the data file.
 		"""
-		self.fname = fname
+		self.fname   = fname
 		self.datavar = datavar
 		self.__read_nc_file()
 		self.orig_data = np.copy(self.data)
 		self.ny, self.nx = self.data.shape
 		
+		# Determining whether the longitude ranges from -180 to 180 or 0 to 360
+		# this will determine how we plot the preview plot
 		if (self.lons.min() < 0) and (self.lons.max() > 0):
 			self.lon_modulo = 180
 		else:
@@ -201,6 +203,7 @@ class GeoEditor(QMainWindow):
 		self.cursor = self.dc.getCursor()  # Defining a cursor on the data
 		self.prvrect = None  # The Rectangle object on the world map
 
+		# For saving the modified data. save_fmt is a format string to use with numpy's savetxt
 		self.save_fname = None
 		self.save_fmt   = None
 
