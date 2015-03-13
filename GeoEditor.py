@@ -524,7 +524,8 @@ class GeoEditor(QMainWindow):
 
 		ncfile = Dataset(self.dc.fname, "a", format="NETCDF4")
 		if not self.save_var in ncfile.variables.keys():
-			dvar = ncfile.createVariable(self.save_var, 'f8', (self.dc.lon_var, self.dc.lat_var))
+			dvar = ncfile.createVariable(self.save_var, 'f4', (self.dc.lat_var, self.dc.lon_var), zlib=True)
+			dvar.units = "km"
 		else:
 			dvar = ncfile.variables[self.save_var]
 		dvar[:,:] = self.dc.data
