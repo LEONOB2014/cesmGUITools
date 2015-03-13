@@ -83,12 +83,14 @@ class DataContainer(object):
 		for var in ["longitudes", "longitude", "lons"]:
 			try:
 				self.lons = ncfile.variables[var][:]
+				self.lon_var = ncfile.variables[var].dimensions[0]
 			except:
 				pass
 
 		for var in ["latitudes", "latitude", "lats"]:
 			try:
 				self.lats = ncfile.variables[var][:]
+				self.lat_var = ncfile.variables[var].dimensions[0]
 			except:
 				pass
 
@@ -204,8 +206,7 @@ class GeoEditor(QMainWindow):
 		self.prvrect = None  # The Rectangle object on the world map
 
 		# For saving the modified data. save_fmt is a format string to use with numpy's savetxt
-		self.save_fname = None
-		self.save_fmt   = None
+		self.save_var   = None
 
 		self.maps = mpl.cm.datad.keys()  # The names of colormaps available
 		self.maps.sort() # Sorting them alphabetically for ease of use
@@ -510,21 +511,26 @@ class GeoEditor(QMainWindow):
 	
 	def save_data(self):
 		"""
-		Saves the data array to a text file. It first opens a window to allow the user to select the
-		save filename, and then prompts the user to enter a numpy save format. It remembers these 
-		information so further calls to save do not prompt for this information. 
+		Saves the data to the netCDF4 file from which input data was read in. First, the program asks
+		for a variable name to use, but it remembers this variable name for subsequent saves. 
 		"""
-		file_choices = "Text files (*.txt)"
-		if not self.save_fname:
-			self.save_fname = unicode(QFileDialog.getSaveFileName(self, 'Save File', '', file_choices))
-			fmt, ok = QInputDialog().getText(self, 'Output format', "Numpy save format:", text="%5.2f")
-			self.save_fmt = str(fmt)
+		if not self.save_var:
+			self.save_var, ok = QInputDialog.getText(self, "Saving...", "Enter variable name:",)
+			self.save_var = str(self.save_var)
 			if (not ok):
 				self.statusBar().showMessage('Save cancelled', 2000)
-				self.save_fname = None
+				self.save_var = None
 				return
-		np.savetxt(self.save_fname, self.dc.data, fmt=self.save_fmt)
-		self.statusBar().showMessage('Saved to %s' % self.save_fname, 2000)
+
+		ncfile = Dataset(self.dc.fname, "a", format="NETCDF4")
+		if not self.save_var in ncfile.variables.keys():
+			dvar = ncfile.createVariable(self.save_var, 'f8', (self.dc.lon_var, self.dc.lat_var))
+		else:
+			dvar = ncfile.variables[self.save_var]
+		dvar[:,:] = self.dc.data
+		ncfile.close()
+
+		self.statusBar().showMessage('Saved to variable: %s' % self.save_var, 2000)
 
 	
 	
