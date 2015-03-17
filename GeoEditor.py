@@ -205,6 +205,9 @@ class GeoEditor(QMainWindow):
 		self.cursor = self.dc.getCursor()  # Defining a cursor on the data
 		self.prvrect = None  # The Rectangle object on the world map
 
+		# The previously upadte value
+		self.buffer_value = None
+
 		# For saving the modified data. save_fmt is a format string to use with numpy's savetxt
 		self.save_var   = None
 
@@ -222,9 +225,11 @@ class GeoEditor(QMainWindow):
 	
 	
 	def keyPressEvent(self, e):
-		if e.key() == Qt.Key_E:
+		if e.key() == Qt.Key_Equal:
 			# Pressing e for edit
 			self.inputbox.setFocus()
+		elif e.key() == Qt.Key_Period:
+			self.update_value(self.buffer_value)
 		elif e.key() == Qt.Key_C:
 			self.colormaps.setFocus()
 		elif e.key() == Qt.Key_Escape:
@@ -453,9 +458,12 @@ class GeoEditor(QMainWindow):
 	
 
 
-	def update_value(self):
-		inp = self.inputbox.text()   # Get the value in the text box
+	def update_value(self, inp=None):
+		if inp == None:
+			inp = self.inputbox.text()   # Get the value in the text box
 		self.dc.modifyValue(inp)     # Modify the data array
+		self.buffer_value = inp
+		self.statusBar().showMessage('Value changed: {0}'.format(inp), 2000)
 		self.set_stats_info(self.dc.getViewStatistics()) 
 		self.inputbox.clear()        # Now clear the input box
 		self.render_view()           # Render the new view (which now contains the updated value)
