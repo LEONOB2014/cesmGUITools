@@ -108,6 +108,10 @@ class DataContainer(object):
 
 
 	def getCursor(self): return self.cursor
+	
+	def getValueUnderCursor(self): 
+		ci, cj = self.viewIndex2GlobalIndex(self.cursor.y, self.cursor.x)
+		return self.data[ci, cj]
 
 
 	def updateCursorPosition(self, event):
@@ -179,6 +183,21 @@ class DataContainer(object):
 		self.data[ci, cj] = float(input)
 
 
+	def getAverage(self, center=False):
+		"""
+		Returns the average value at the cursor computed from the values of the surrounding cells. This
+		is a 4 point average.
+		If center==True, then includes the cell at which the cursor is in the calculation of the average,
+		in which case it will be a 5 point average. 
+		"""
+		ci, cj = self.viewIndex2GlobalIndex(self.cursor.y, self.cursor.x)
+		_sum   = self.data[ci,cj-1] + self.data[ci,cj+1] + self.data[ci-1,cj] + self.data[ci+1,cj]
+		if center: 
+			_sum += self.data[ci,cj]
+			return _sum/5.
+		else:
+			return _sum/4.
+
 
 	def viewIndex2GlobalIndex(self, i, j):
 		""" Converts an i,j index into the data window into an index for the
@@ -226,12 +245,21 @@ class GeoEditor(QMainWindow):
 	
 	def keyPressEvent(self, e):
 		if e.key() == Qt.Key_Equal:
-			# Pressing e for edit
+			# Pressing = for edit
 			self.inputbox.setFocus()
-		elif e.key() == Qt.Key_Period:
+		elif e.key() == Qt.Key_V:
 			self.update_value(self.buffer_value)
 		elif e.key() == Qt.Key_C:
-			self.colormaps.setFocus()
+			self.buffer_value = self.dc.getValueUnderCursor()
+			self.statusBar().showMessage('Value copied: {0}'.format(self.buffer_value), 2000)
+		elif e.key() == Qt.Key_A:
+			# Get the 5-point average and update the value
+			self.update_value_2(self.dc.getAverage(center=True))
+		elif e.key() == Qt.Key_F:
+			# Get the 4-point average and update the value
+			self.update_value_2(self.dc.getAverage())
+		# elif e.key() == Qt.Key_C:
+		#     self.colormaps.setFocus()
 		elif e.key() == Qt.Key_Escape:
 			# Pressing escape to refocus back to the main frame
 			self.main_frame.setFocus()
@@ -470,6 +498,15 @@ class GeoEditor(QMainWindow):
 		self.main_frame.setFocus()   # Bring focus back to the view
 	
 	
+	def update_value_2(self, val):
+		"""
+		Updates the value at the current cursor position using the input val.
+		"""
+		self.dc.modifyValue(val)     # Modify the data array
+		self.statusBar().showMessage('Value changed: {0}'.format(val), 2000)
+		self.set_stats_info(self.dc.getViewStatistics()) 
+		self.render_view()           # Render the new view (which now contains the updated value)            
+
 		
 	
 	def set_information(self, i, j):
