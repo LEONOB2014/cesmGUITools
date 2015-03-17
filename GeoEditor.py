@@ -41,18 +41,22 @@ class DataContainer(object):
 			self.y = 0
 
 
-	def __init__(self, nrows, ncols, fname, datavar):
+	def __init__(self, nrows, ncols, fname, datavar, scale):
 		"""
 		ARGUMENTS
 			nrows - number of rows for the view
 			ncols - number of columns for the view
 			fname - name of the data file.
+			scale - a multiplicative scale factor for the data to be visualized and edited
 		"""
 		self.fname   = fname
 		self.datavar = datavar
 		self.__read_nc_file()
 		self.orig_data = np.copy(self.data)
 		self.ny, self.nx = self.data.shape
+
+		self.scale = scale
+		self.data*=scale
 		
 		# Determining whether the longitude ranges from -180 to 180 or 0 to 360
 		# this will determine how we plot the preview plot
@@ -208,7 +212,7 @@ class DataContainer(object):
 
 class GeoEditor(QMainWindow):    
 
-	def __init__(self, fname, datavar, dwx=60, dwy=60):
+	def __init__(self, fname, datavar, dwx=60, dwy=60, scale=1.0):
 		"""
 		ARGUMENTS:
 			fname    - Name of the netcdf4 file
@@ -219,7 +223,7 @@ class GeoEditor(QMainWindow):
 		self.setWindowTitle('GeoEditor - {0}'.format(fname))
 		
 		#  Creating a variable that contains all the data
-		self.dc = DataContainer(dwy, dwx, fname, datavar)
+		self.dc = DataContainer(dwy, dwx, fname, datavar, scale)
 		
 		self.cursor = self.dc.getCursor()  # Defining a cursor on the data
 		self.prvrect = None  # The Rectangle object on the world map
@@ -469,7 +473,7 @@ class GeoEditor(QMainWindow):
 		# Either select the colormap through the combo box or specify a custom colormap
 		# cmap = mpl.cm.get_cmap(self.maps[self.colormaps.currentIndex()])
 		cmap   = topography_cmap(80, end=0.85)
-		ll, ul = make_balanced(ll=-7., silent=True)
+		ll, ul = make_balanced(ll=-7.*self.dc.scale, silent=True)
 		self.axes.pcolor(self.dc.view, cmap=cmap, edgecolors='w', linewidths=0.5, vmin=ll, vmax=ul)
 		
 		# Setting the axes limits. This helps in setting the right orientation of the plot
@@ -573,7 +577,7 @@ class GeoEditor(QMainWindow):
 			dvar.units = "km"
 		else:
 			dvar = ncfile.variables[self.save_var]
-		dvar[:,:] = self.dc.data
+		dvar[:,:] = self.dc.data/self.dc.scale
 		ncfile.close()
 
 		self.statusBar().showMessage('Saved to variable: %s' % self.save_var, 2000)
@@ -640,9 +644,10 @@ def main():
 	parser.add_argument('fname', nargs=1, type=str, help='name of the netcdf4 data file')
 	parser.add_argument('var',   nargs=1, type=str, help='name of the variable in the netcdf4 file')
 	parser.add_argument('-s',    nargs=1, type=int, help='size of the view in number of pixels', default=[60])
+	parser.add_argument('--scale', nargs=1, type=float, help='multiplicative scaling factor for the data', default=[1.0])
 	args = parser.parse_args()
 
-	mw = GeoEditor(args.fname[0], args.var[0], dwx=args.s[0], dwy=args.s[0])
+	mw = GeoEditor(args.fname[0], args.var[0], dwx=args.s[0], dwy=args.s[0], scale=args.scale[0])
 	mw.show()     # Render the window
 	mw.raise_()   # Bring the PyQt4 window to the front
 	app.exec_()   # Run the application loop
