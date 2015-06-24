@@ -75,9 +75,10 @@ class DataContainer(object):
     def __read_nc_file(self):
         """ This subroutine reads the netCDF4 data file. """
         ncfile        = Dataset(self.fname, "r", format="NETCDF4")
-        self.data     = ncfile.variables[self.datavar][:,:]
-        self.kmt_lons = ncfile.variables["ULON"][:,:]
-        self.kmt_lats = ncfile.variables["ULAT"][:,:]
+        # We are flipping the arrays so that the latitudes go from 90:-90
+        self.data     = np.flipud(ncfile.variables[self.datavar][:,:])
+        self.kmt_lons = np.flipud(ncfile.variables["ULON"][:,:])
+        self.kmt_lats = np.flipud(ncfile.variables["ULAT"][:,:])
         ncfile.close()
 
 
