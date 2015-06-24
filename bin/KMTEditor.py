@@ -25,7 +25,6 @@ from matplotlib.collections import PatchCollection
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt4agg import NavigationToolbar2QT as NavigationToolbar
 
-from Trident.plots.plot_utils import topography_cmap, make_balanced
 
 mpl.rc('axes',edgecolor='w')
 
@@ -41,7 +40,7 @@ class DataContainer(object):
             self.y = 0           # Y-position of the cursor
 
 
-    def __init__(self, nrows, ncols, fname, datavar, scale):
+    def __init__(self, nrows, ncols, fname, datavar):
         """
         ARGUMENTS
             nrows - number of rows for the view
@@ -55,15 +54,7 @@ class DataContainer(object):
         self.orig_data = np.copy(self.data)
         self.ny, self.nx = self.data.shape
 
-        self.scale = scale
-        self.data*=scale
         
-        # Determining whether the longitude ranges from -180 to 180 or 0 to 360
-        # this will determine how we plot the preview plot
-        # if (self.lons.min() < 0) and (self.lons.max() > 0):
-        #     self.lon_modulo = 180
-        # else:
-        #     self.lon_modulo = 360
         self.lon_modulo = 360
         
         # Datawindow variables
@@ -82,33 +73,9 @@ class DataContainer(object):
     
 
     def __read_nc_file(self):
-        """ This subroutine reads the netCDF4 data file. It looks for common names
-        of the latitude and longitude variables in the file. If it cannot find any
-        one of these coordinates, then it raises and error. """
-        # self.kmt_lons = None
-        # self.kmt_lats = None
-        ncfile = Dataset(self.fname, "r", format="NETCDF4")
-       
-        # for var in ["longitudes", "longitude", "lons"]:
-        #     try:
-        #         self.lons = ncfile.variables[var][:]
-        #         self.lon_var = ncfile.variables[var].dimensions[0]
-        #     except:
-        #         pass
-
-        # for var in ["latitudes", "latitude", "lats"]:
-        #     try:
-        #         self.lats = ncfile.variables[var][:]
-        #         self.lat_var = ncfile.variables[var].dimensions[0]
-        #     except:
-        #         pass
-
-        # if (self.lats == None) or (self.lons == None):
-        #     ncfile.close()
-        #     QMessageBox.critical(QWidget(), 'Error', "Latitude and or longitude variables not found.", QMessageBox.Ok)
-        #     sys.exit()
-            
-        self.data = ncfile.variables[self.datavar][:,:]
+        """ This subroutine reads the netCDF4 data file. """
+        ncfile        = Dataset(self.fname, "r", format="NETCDF4")
+        self.data     = ncfile.variables[self.datavar][:,:]
         self.kmt_lons = ncfile.variables["ULON"][:,:]
         self.kmt_lats = ncfile.variables["ULAT"][:,:]
         ncfile.close()
@@ -155,8 +122,8 @@ class DataContainer(object):
             Statistics of the newly updated view (a tuple with the min, max, and the mean for the new view)
         """
         self.view = self.data[si:si+self.nrows, sj:sj+self.ncols].view()
-        self.si = si
-        self.sj = sj
+        self.si   = si
+        self.sj   = sj
         return self.getViewStatistics()
     
     
@@ -223,7 +190,7 @@ class DataContainer(object):
 
 class KMTEditor(QMainWindow):    
 
-    def __init__(self, fname, datavar, dwx=60, dwy=60, scale=1.0):
+    def __init__(self, fname, datavar, dwx=60, dwy=60):
         """
         ARGUMENTS:
             fname    - Name of the netcdf4 file
@@ -235,7 +202,7 @@ class KMTEditor(QMainWindow):
         self.setWindowTitle('KMTEditor - {0}'.format(fname))
         
         #  Creating a variable that contains all the data
-        self.dc = DataContainer(dwy, dwx, fname, datavar, scale)
+        self.dc = DataContainer(dwy, dwx, fname, datavar)
         
         self.cursor = self.dc.getCursor()  # Defining a cursor on the data
         # This is the Rectangle boundary drawn on the world map that bounds the region
@@ -245,9 +212,6 @@ class KMTEditor(QMainWindow):
         # The previously updated value
         self.buffer_value = None
 
-        # The netcdf variable name for saving the modified data. The user will be asked
-        # to enter the value when saving. 
-        self.save_var   = None
 
         self.maps = mpl.cm.datad.keys()  # The names of colormaps available
         self.maps.sort() # Sorting them alphabetically for ease of use
@@ -277,8 +241,8 @@ class KMTEditor(QMainWindow):
         elif e.key() == Qt.Key_F:
             # Get the 4-point average and update the value
             self.update_value_2(self.dc.getAverage())
-        # elif e.key() == Qt.Key_C:
-        #     self.colormaps.setFocus()
+        elif e.key() == Qt.Key_M:
+            self.colormaps.setFocus()
         elif e.key() == Qt.Key_Escape:
             # Pressing escape to refocus back to the main frame
             self.main_frame.setFocus()
@@ -434,14 +398,9 @@ class KMTEditor(QMainWindow):
         This function draws the world map in the preview window on the top right hand corner 
         of the application.
         """
-        if self.dc.lon_modulo == 180:
-            m = Basemap(projection='cyl', lon_0=0, llcrnrlat=-90,urcrnrlat=90,\
-                llcrnrlon=-180,urcrnrlon=180,resolution='c', ax=self.preview_axes)
-            self.preview_axes.set_xlim([-180,180])
-        else:
-            m = Basemap(projection='cyl', lon_0=180, llcrnrlat=-90,urcrnrlat=90,\
-                llcrnrlon=0,urcrnrlon=360,resolution='c', ax=self.preview_axes)
-            self.preview_axes.set_xlim([0,360])
+        m = Basemap(projection='cyl', lon_0=180, llcrnrlat=-90,urcrnrlat=90,\
+            llcrnrlon=0,urcrnrlon=360,resolution='c', ax=self.preview_axes)
+        self.preview_axes.set_xlim([0,360])
         
         m.drawcoastlines(linewidth=0.5)
         self.preview_axes.set_ylim([-90,90])
@@ -486,8 +445,8 @@ class KMTEditor(QMainWindow):
     def render_view(self):
         self.axes.clear()
         # Either select the colormap through the combo box or specify a custom colormap
-        # cmap = mpl.cm.get_cmap(self.maps[self.colormaps.currentIndex()])
-        cmap = mpl.cm.Set1
+        cmap = mpl.cm.get_cmap(self.maps[self.colormaps.currentIndex()])
+        # cmap = mpl.cm.Set1
         self.axes.pcolor(self.dc.view, cmap=cmap, edgecolors='w', linewidths=0.5, vmin=0, vmax=60)
         
         # Setting the axes limits. This helps in setting the right orientation of the plot
@@ -577,22 +536,25 @@ class KMTEditor(QMainWindow):
         Saves the data to the netCDF4 file from which input data was read in. First, the program asks
         for a variable name to use, but it remembers this variable name for subsequent saves. 
         """
-        if not self.save_var:
-            self.save_var, ok = QInputDialog.getText(self, "Saving...", "Enter variable name:",)
-            self.save_var = str(self.save_var)
-            if (not ok):
-                self.statusBar().showMessage('Save cancelled', 2000)
-                self.save_var = None
-                return
+        # if not self.save_var:
+        #     self.save_var, ok = QInputDialog.getText(self, "Saving...", "Enter variable name:",)
+        #     self.save_var = str(self.save_var)
+        #     if (not ok):
+        #         self.statusBar().showMessage('Save cancelled', 2000)
+        #         self.save_var = None
+        #         return
 
-        ncfile = Dataset(self.dc.fname, "a", format="NETCDF4")
-        if not self.save_var in ncfile.variables.keys():
-            dvar = ncfile.createVariable(self.save_var, 'f4', ("latitude", "longitude"), zlib=True)
-            dvar.units = "km"
-        else:
-            dvar = ncfile.variables[self.save_var]
-        dvar[:,:] = self.dc.data/self.dc.scale
-        ncfile.close()
+
+
+
+        # ncfile = Dataset(self.dc.fname, "a", format="NETCDF4")
+        # if not self.save_var in ncfile.variables.keys():
+        #     dvar = ncfile.createVariable(self.save_var, 'f4', ("latitude", "longitude"), zlib=True)
+        #     dvar.units = "km"
+        # else:
+        #     dvar = ncfile.variables[self.save_var]
+        # dvar[:,:] = self.dc.data/self.dc.scale
+        # ncfile.close()
 
         self.statusBar().showMessage('Saved to variable: %s' % self.save_var, 2000)
 
@@ -656,12 +618,12 @@ def main():
 
     parser = argparse.ArgumentParser(description='KMTEditor', add_help=False)
     parser.add_argument('fname', nargs=1, type=str, help='name of the netcdf4 data file')
-    parser.add_argument('var',   nargs=1, type=str, help='name of the variable in the netcdf4 file')
+    # parser.add_argument('var',   nargs=1, type=str, help='name of the variable in the netcdf4 file')
     parser.add_argument('-s',    nargs=1, type=int, help='size of the view in number of pixels', default=[60])
-    parser.add_argument('--scale', nargs=1, type=float, help='multiplicative scaling factor for the data', default=[1.0])
     args = parser.parse_args()
 
-    mw = KMTEditor(args.fname[0], args.var[0], dwx=args.s[0], dwy=args.s[0], scale=args.scale[0])
+    # mw = KMTEditor(args.fname[0], args.var[0], dwx=args.s[0], dwy=args.s[0], scale=args.scale[0])
+    mw = KMTEditor(args.fname[0], "kmt", dwx=args.s[0], dwy=args.s[0])
     mw.show()     # Render the window
     mw.raise_()   # Bring the PyQt4 window to the front
     app.exec_()   # Run the application loop
