@@ -60,6 +60,7 @@ class DataContainer(object):
         
         # Datawindow variables
         self.view   = None        # The array (actually a numpy view) that stores the data to be displayed in the main window
+        self.masked_view = None
         self.nrows  = nrows       # Number of rows to display in the main windows (the 'view')
         self.ncols  = ncols       # Number of cols to display in the main windows
         self.si     = None        # 0-based row index of the first element 
@@ -124,11 +125,23 @@ class DataContainer(object):
             Statistics of the newly updated view (a tuple with the min, max, and the mean for the new view)
         """
         self.view = self.data[si:si+self.nrows, sj:sj+self.ncols].view()
+
+        # We need to create the continent mask
+        self.masked_view = self.view.view(np.ma.MaskedArray)
+
+        # Now that we have updated the view, and created the masked view of the 
+        # view itself, we need to update the "mask" of the masked view.
+        self.updateMask()
+
+
         self.si   = si
         self.sj   = sj
         return self.getViewStatistics()
     
+
+    def updateMask(self): self.masked_view.mask = (self.view == 0)
     
+
     def moveView(self, move):
         """
         Moves the view window over the global dataset in response to the L,R,U,D keys. 
@@ -164,6 +177,10 @@ class DataContainer(object):
         ci, cj = self.viewIndex2GlobalIndex(self.cursor.y, self.cursor.x)
         # self.modified[ci, cj] = 1
         self.data[ci, cj] = int(float(inp))
+        
+        # Now that we have changed a value, we have to update the continent mask as
+        # well, in case the update entailed creating or destroying land.
+        self.updateMask()
 
 
     def getAverage(self, center=False):
@@ -450,8 +467,7 @@ class KMTEditor(QMainWindow):
         self.axes.clear()
         # Either select the colormap through the combo box or specify a custom colormap
         cmap = mpl.cm.get_cmap(self.maps[self.colormaps.currentIndex()])
-        masked = np.ma.array(self.dc.view, mask=(self.dc.view==0))
-        self.axes.pcolor(masked, cmap=cmap, edgecolors='w', linewidths=0.5, 
+        self.axes.pcolor(self.dc.masked_view, cmap=cmap, edgecolors='w', linewidths=0.5, 
                          vmin=KMTEditor.KMT_MIN_VAL, vmax=KMTEditor.KMT_MAX_VAL)
 
         tmp1 = self.dc.nrows
@@ -535,10 +551,6 @@ class KMTEditor(QMainWindow):
         self.statsarray[0].setText("{0:3d}".format(int(s[0])))
         self.statsarray[1].setText("{0:3d}".format(int(s[1])))
         self.statsarray[2].setText("{0:3d}".format(int(s[2])))
-
-        # self.statsarray[0].setText("{0:5.2f}".format(s[0]))
-        # self.statsarray[1].setText("{0:5.2f}".format(s[1]))
-        # self.statsarray[2].setText("{0:5.2f}".format(s[2]))
 
 
     def onclick(self, event):
