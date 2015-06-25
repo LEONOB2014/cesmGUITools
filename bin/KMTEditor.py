@@ -153,17 +153,16 @@ class DataContainer(object):
             return self.updateView(new_si, self.sj)
 
     
-    def modifyValue(self, input):
+    def modifyValue(self, inp):
         """
         Modify the value for a particular pixel. The location of the pixel is that
         determined by the current position of the cursor.
         ARGUMENTS
-            input - a string containing a float (note: no data validity check is 
-                    performed on this string)
+            inp - a string containing a float
         """
         ci, cj = self.viewIndex2GlobalIndex(self.cursor.y, self.cursor.x)
         # self.modified[ci, cj] = 1
-        self.data[ci, cj] = float(input)
+        self.data[ci, cj] = int(float(inp))
 
 
     def getAverage(self, center=False):
@@ -467,13 +466,15 @@ class KMTEditor(QMainWindow):
     def update_value(self, inp=None):
         if inp == None:
             inp = self.inputbox.text()   # Get the value in the text box
-        self.dc.modifyValue(inp)     # Modify the data array
-        self.buffer_value = inp
-        self.statusBar().showMessage('Value changed: {0}'.format(inp), 2000)
-        self.set_stats_info(self.dc.getViewStatistics()) 
-        self.inputbox.clear()        # Now clear the input box
-        self.render_view()           # Render the new view (which now contains the updated value)
-        self.main_frame.setFocus()   # Bring focus back to the view
+
+        if self.InputValueIsAcceptable(inp):
+            self.dc.modifyValue(inp)     # Modify the data array
+            self.buffer_value = inp
+            self.statusBar().showMessage('Value changed: {0}'.format(inp), 2000)
+            self.set_stats_info(self.dc.getViewStatistics()) 
+            self.inputbox.clear()        # Now clear the input box
+            self.render_view()           # Render the new view (which now contains the updated value)
+            self.main_frame.setFocus()   # Bring focus back to the view
     
     
     def update_value_2(self, val):
@@ -484,6 +485,22 @@ class KMTEditor(QMainWindow):
         self.statusBar().showMessage('Value changed: {0}'.format(val), 2000)
         self.set_stats_info(self.dc.getViewStatistics()) 
         self.render_view()           # Render the new view (which now contains the updated value)            
+
+
+    def InputValueIsAcceptable(self, inp):
+        """ This functions checks to see if the user has entered a valid 
+            vlaue kmt value. Returns true if the input value is acceptable. """
+        tt = float(inp)
+        if (tt != int(tt)):
+            msg = "KMT level must be an integer value\nYou entered {0}".format(inp)
+            QMessageBox.critical(self, "Invalid Value", msg.strip())
+            return False
+
+        if ((tt < 0) or (tt > 60)):
+            msg = "KMT level values must be between 0 and 60.\nYou entered {0}".format(inp)
+            QMessageBox.critical(self, "Invalid Value", msg.strip())
+            return False
+        return True
 
         
     
