@@ -10,7 +10,7 @@ Author : Deepak Chandan
 Date   : June 24th, 2015
 """
 
-import sys, argparse
+import sys, argparse, os
 from netCDF4 import Dataset
 import numpy as np
 from PyQt4.QtCore import *
@@ -25,6 +25,7 @@ from matplotlib.collections import PatchCollection
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt4agg import NavigationToolbar2QT as NavigationToolbar
 
+from PyCESM.utilities import nccopy
 
 mpl.rc('axes',edgecolor='w')
 
@@ -558,27 +559,38 @@ class KMTEditor(QMainWindow):
         Saves the data to the netCDF4 file from which input data was read in. First, the program asks
         for a variable name to use, but it remembers this variable name for subsequent saves. 
         """
-        # if not self.save_var:
-        #     self.save_var, ok = QInputDialog.getText(self, "Saving...", "Enter variable name:",)
-        #     self.save_var = str(self.save_var)
-        #     if (not ok):
-        #         self.statusBar().showMessage('Save cancelled', 2000)
-        #         self.save_var = None
-        #         return
 
+        # We construct a standard output name of the form: inputname_fixed.nc
+        ofile = self.dc.fname.split(".")[0]+"_fixed.nc"
 
+        # Now we check if the file exists. Then we must ask the user if she wants to overwrite the file
+        if os.path.exists(ofile):
+            reply = QMessageBox.question(self, 'Message', "An output file exists. Do you want to overwrite?", 
+                    QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
 
+            if reply == QMessageBox.Yes:
+                clobber=True
+            else:
+                clobber=False
 
-        # ncfile = Dataset(self.dc.fname, "a", format="NETCDF4")
-        # if not self.save_var in ncfile.variables.keys():
-        #     dvar = ncfile.createVariable(self.save_var, 'f4', ("latitude", "longitude"), zlib=True)
-        #     dvar.units = "km"
-        # else:
-        #     dvar = ncfile.variables[self.save_var]
-        # dvar[:,:] = self.dc.data/self.dc.scale
-        # ncfile.close()
+        if not clobber:
+            # The use has responded to not overwrite, we must now ask for a new filename
+            ofile, ok = QInputDialog.getText(self, "Saving KMT edit", "Enter name of a different output file:",)
+            ofile = str(ofile)
+            if (not ok):
+                self.statusBar().showMessage('Save cancelled', 2000)
+                return
 
-        self.statusBar().showMessage('Saved to variable: %s' % self.save_var, 2000)
+        # If all is well so far, we have an acceptable output filename and we can proceed with writing.
+
+        # To simplify creation of the output filename, i first duplicate the original file, then overwrite
+        # the kmt array.
+        nccopy(self.dc.fname, ofile, quiet=True, clobber=True, zlib=False, shuffle=False, classic=1)
+
+        ncfile = Dataset(ofile, "a", format="NETCDF4")
+        ncfile.variables["kmt"][:,:] = np.flipud(self.dc.data)
+        self.statusBar().showMessage('Saved to file: %s' % ofile, 2000)
+
 
     
     
