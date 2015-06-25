@@ -310,9 +310,9 @@ class KMTEditor(QMainWindow):
         self.statsarray = []
         for i in range(6): self.statsarray.append(QLabel(''))
 
-        self.statsarray[3].setText("{0:5.2f}".format(self.dc.data.min()))
-        self.statsarray[4].setText("{0:5.2f}".format(self.dc.data.max()))
-        self.statsarray[5].setText("{0:5.2f}".format(self.dc.data.mean()))
+        self.statsarray[3].setText("{0:3d}".format(int(self.dc.data.min())))
+        self.statsarray[4].setText("{0:3d}".format(int(self.dc.data.max())))
+        self.statsarray[5].setText("{0:3d}".format(int(self.dc.data.mean())))
 
         for i in range(3):
             self.statgrid.addWidget(self.statsarray[i], i+2, 1, Qt.AlignCenter)
@@ -495,7 +495,7 @@ class KMTEditor(QMainWindow):
         i_global, j_global = self.dc.viewIndex2GlobalIndex(i, j) # Convert local indices to global indices
         self.latdisplay.setText("{0}".format(self.dc.kmt_lats[i_global, j_global]))
         self.londisplay.setText("{0}".format(self.dc.kmt_lons[i_global, j_global]))
-        self.valdisplay.setText("{0}".format(self.dc.data[i_global, j_global]))
+        self.valdisplay.setText("{0:3d}".format(int(self.dc.data[i_global, j_global])))
     
 
     def set_stats_info(self, s):
@@ -504,9 +504,13 @@ class KMTEditor(QMainWindow):
         ARGUMENTS
             s - a tuple with the min, max and mean of the view
         """
-        self.statsarray[0].setText("{0:5.2f}".format(s[0]))
-        self.statsarray[1].setText("{0:5.2f}".format(s[1]))
-        self.statsarray[2].setText("{0:5.2f}".format(s[2]))
+        self.statsarray[0].setText("{0:3d}".format(int(s[0])))
+        self.statsarray[1].setText("{0:3d}".format(int(s[1])))
+        self.statsarray[2].setText("{0:3d}".format(int(s[2])))
+
+        # self.statsarray[0].setText("{0:5.2f}".format(s[0]))
+        # self.statsarray[1].setText("{0:5.2f}".format(s[1]))
+        # self.statsarray[2].setText("{0:5.2f}".format(s[2]))
 
 
     def onclick(self, event):
