@@ -674,11 +674,9 @@ def main():
 
     parser = argparse.ArgumentParser(description='KMTEditor', add_help=False)
     parser.add_argument('fname', nargs=1, type=str, help='name of the netcdf4 data file')
-    # parser.add_argument('var',   nargs=1, type=str, help='name of the variable in the netcdf4 file')
     parser.add_argument('-s',    nargs=1, type=int, help='size of the view in number of pixels', default=[60])
     args = parser.parse_args()
 
-    # mw = KMTEditor(args.fname[0], args.var[0], dwx=args.s[0], dwy=args.s[0], scale=args.scale[0])
     mw = KMTEditor(args.fname[0], "kmt", dwx=args.s[0], dwy=args.s[0])
     mw.show()     # Render the window
     mw.raise_()   # Bring the PyQt4 window to the front
