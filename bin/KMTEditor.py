@@ -189,7 +189,10 @@ class DataContainer(object):
     
     
 
-class KMTEditor(QMainWindow):    
+class KMTEditor(QMainWindow):
+
+    KMT_MIN_VAL = 0
+    KMT_MAX_VAL = 60
 
     def __init__(self, fname, datavar, dwx=60, dwy=60):
         """
@@ -345,7 +348,7 @@ class KMTEditor(QMainWindow):
         cmap_label = QLabel('Colorscheme:')
         self.colormaps = QComboBox(self)
         self.colormaps.addItems(self.maps)
-        self.colormaps.setCurrentIndex(self.maps.index('Spectral'))
+        self.colormaps.setCurrentIndex(self.maps.index('Set1'))
         self.colormaps.currentIndexChanged.connect(self.render_view)
 
         # New value editor
@@ -447,13 +450,20 @@ class KMTEditor(QMainWindow):
         self.axes.clear()
         # Either select the colormap through the combo box or specify a custom colormap
         cmap = mpl.cm.get_cmap(self.maps[self.colormaps.currentIndex()])
-        # cmap = mpl.cm.Set1
-        self.axes.pcolor(self.dc.view, cmap=cmap, edgecolors='w', linewidths=0.5, vmin=0, vmax=60)
+        masked = np.ma.array(self.dc.view, mask=(self.dc.view==0))
+        self.axes.pcolor(masked, cmap=cmap, edgecolors='w', linewidths=0.5, 
+                         vmin=KMTEditor.KMT_MIN_VAL, vmax=KMTEditor.KMT_MAX_VAL)
+
+        tmp1 = self.dc.nrows
+        tmp2 = self.dc.ncols
+
+        # This is for drawing the black contour line for the continents
+        self.axes.contour(self.dc.view, levels=[0], colors='k', linewidth=1.5, 
+                          interpolation="nearest", origin="lower", 
+                          extents=[0.5,tmp2+0.5, 0.5, tmp1+0.5])
         
         # Setting the axes limits. This helps in setting the right orientation of the plot
         # and in clontrolling how much extra space we want around the scatter plot.
-        tmp1 = self.dc.nrows
-        tmp2 = self.dc.ncols
         # I am putting 4% space around the scatter plot
         self.axes.set_ylim([int(tmp1*1.02), 0 - int(tmp1*0.02)])
         self.axes.set_xlim([0 - int(tmp2*0.02), int(tmp2*1.02)])
