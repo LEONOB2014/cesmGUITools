@@ -524,18 +524,18 @@ class KMTEditor(QMainWindow):
             return False
         return True
 
-        
-    
+
+
     def set_information(self, i, j):
-        """ Sets the displayed information about the pixel in the right sidebar. 
+        """ Sets the displayed information about the pixel in the right sidebar.
         ARGUMENTS
             i, j : the local (i.e. DataContainer) 0-based indices for the element
         """
         i_global, j_global = self.dc.viewIndex2GlobalIndex(i, j) # Convert local indices to global indices
-        self.latdisplay.setText("{0}".format(self.dc.kmt_lats[i_global, j_global]))
-        self.londisplay.setText("{0}".format(self.dc.kmt_lons[i_global, j_global]))
+        self.latdisplay.setText("{0:7.3f}".format(self.dc.kmt_lats[i_global, j_global]))
+        self.londisplay.setText("{0:7.3f}".format(self.dc.kmt_lons[i_global, j_global]))
         self.valdisplay.setText("{0:3d}".format(int(self.dc.data[i_global, j_global])))
-    
+
 
     def set_stats_info(self, s):
         """
