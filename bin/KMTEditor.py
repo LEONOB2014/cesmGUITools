@@ -289,17 +289,18 @@ class KMTEditor(QMainWindow):
         self.fig = plt.Figure((6, 6), dpi=self.dpi, facecolor='w', edgecolor='w')
         self.canvas = FigureCanvas(self.fig)
         self.canvas.setParent(self.main_frame)
-        
-        
+
+        # Stuff for the preview map >>>>>>>>>>>>>>>>>>>>>>>>>
         self.preview_frame = QWidget()
-        self.preview_fig = plt.Figure((3, 1.5), dpi=self.dpi, facecolor='w', edgecolor='w')
+        self.preview_fig = plt.Figure((3, 1.6), dpi=self.dpi, facecolor='w', edgecolor='w')
         self.preview = FigureCanvas(self.preview_fig)
         self.preview.setParent(self.preview_frame)
         self.preview_axes = self.preview_fig.add_subplot(111)
-        
+
         self.preview_fig.canvas.mpl_connect('button_press_event', self.onclick)
-        
-        # Since we have only one plot, we can use add_axes 
+        self.preview_fig.subplots_adjust(top=1, bottom=0, left=0, right=1)
+        # Stuff for the preview map <<<<<<<<<<<<<<<<<<<<<<<<<
+
         # Stuff for the colorbar >>>>>>>>>>>>>>>>>>>>>>>>>
         self.colorbar_frame = QWidget()
         self.colorbar_fig   = plt.Figure((3,0.4), dpi=self.dpi, facecolor='w', edgecolor='w')
@@ -313,17 +314,20 @@ class KMTEditor(QMainWindow):
         self.colorbar_axes.get_yaxis().set_visible(False)
         # Stuff for the colorbar <<<<<<<<<<<<<<<<<<<<<<<<<
 
+
+        # Since we have only one plot, we can use add_axes
         # instead of add_subplot, but then the subplot
         # configuration tool in the navigation toolbar wouldn't
         # work.
         #
         self.axes = self.fig.add_subplot(111)
         # Turning off the axes ticks to maximize space. Also the labels were meaningless
-        # anyway because they were not representing the actual lat/lons. 
+        # anyway because they were not representing the actual lat/lons.
         self.axes.get_xaxis().set_visible(False)
         self.axes.get_yaxis().set_visible(False)
-        
-        
+
+
+
         # Other GUI controls
         # Information section
         font = QFont("SansSerif", 14)
@@ -332,7 +336,7 @@ class KMTEditor(QMainWindow):
         self.statdisplay = QLabel("Statistics:")
         self.statgrid    = QGridLayout()
         self.statgrid.setSpacing(5)
-        w = QLabel("Local"); w.setFont(font)
+        w = QLabel("View"); w.setFont(font)
         self.statgrid.addWidget(w,  1, 1, Qt.AlignCenter)
         w = QLabel("Global"); w.setFont(font)
         self.statgrid.addWidget(w, 1, 2, Qt.AlignCenter)
@@ -363,19 +367,26 @@ class KMTEditor(QMainWindow):
         self.infogrid    = QGridLayout()
         self.infogrid.setSpacing(5)
 
-        for i, name in enumerate(["Latitude", "Longitude", "Value"]):
+
+        rr = QLabel("")
+        self.infogrid.addWidget(rr, 1, 1)
+
+        for i, name in enumerate(["Lat", "Lon", "KMT"]):
             w = QLabel(name)
             w.setFont(font)
-            self.infogrid.addWidget(w, i+1, 0, Qt.AlignLeft)
+            # w.setLineWidth(1)
+            # w.setFrameShape(QFrame.Box)
+            self.infogrid.addWidget(w, i+2, 0, Qt.AlignLeft)
 
         self.latdisplay  = QLabel("")
         self.londisplay  = QLabel("")
         self.valdisplay  = QLabel("")
         for i,w in enumerate([self.latdisplay, self.londisplay, self.valdisplay]):
-            self.infogrid.addWidget(w, i+1, 1, Qt.AlignLeft)
+            self.infogrid.addWidget(w, i+2, 1, Qt.AlignLeft)
+            w.setFont(font)
         # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-        
+
         # Colorscheme selector
         cmap_label = QLabel('Colorscheme:')
         self.colormaps = QComboBox(self)
@@ -384,35 +395,58 @@ class KMTEditor(QMainWindow):
         self.colormaps.currentIndexChanged.connect(self.render_view)
 
         # New value editor
-        hbox = QHBoxLayout()
+        valhbox = QHBoxLayout()
         w = QLabel("Enter new value: ")
         w.setFont(font)
-        hbox.addWidget(w)
+        valhbox.addWidget(w)
         self.inputbox = QLineEdit()
         self.inputbox.returnPressed.connect(self.update_value)
-        hbox.addWidget(self.inputbox)
+        valhbox.addWidget(self.inputbox)
 
         for item in [self.statdisplay, self.infodisplay, self.latdisplay, self.londisplay, self.valdisplay, cmap_label]:
             item.setFont(font)
 
-        
+
         vbox = QVBoxLayout()
         vbox.addWidget(self.canvas)
-        
-        
+
+
         vbox2 = QVBoxLayout()
-        vbox2.addWidget(self.preview)
-        
-        vbox2.addWidget(self.statdisplay)
-        vbox2.setAlignment(self.statdisplay, Qt.AlignTop)
-        vbox2.addLayout(self.statgrid)
+        vbox2.addWidget(self.preview)           # Adding preview window
 
-        vbox2.addWidget(self.infodisplay)
-        vbox2.setAlignment(self.infodisplay, Qt.AlignTop)
-        vbox2.addLayout(self.infogrid)
+        # Horizontal line
+        fr = QFrame(); fr.setLineWidth(0.5); fr.setFrameShape(QFrame.HLine)
+        vbox2.addWidget(fr)
+        vbox2.setAlignment(fr, Qt.AlignTop)
 
-        # vbox2.addWidget(self.inputbox, Qt.AlignTop)
-        vbox2.addLayout(hbox, Qt.AlignTop)
+
+        # databox is a horizontal box for the displayed "information"
+        databox  = QHBoxLayout()
+        statvbox = QVBoxLayout()    # This is the sub-box for the statistics
+        statvbox.addWidget(self.statdisplay)
+        statvbox.setAlignment(self.statdisplay, Qt.AlignTop)
+        statvbox.addLayout(self.statgrid)
+        databox.addLayout(statvbox)
+
+        fr = QFrame(); fr.setLineWidth(0.5); fr.setFrameShape(QFrame.VLine)
+        databox.addWidget(fr)
+
+        pixelvbox = QVBoxLayout()   # This is another sub-box of databox for the pixel info
+        pixelvbox.addWidget(self.infodisplay)
+        pixelvbox.setAlignment(self.infodisplay, Qt.AlignTop)
+        pixelvbox.addLayout(self.infogrid)
+        databox.addLayout(pixelvbox)
+
+        vbox2.addLayout(databox)
+
+        # Horizontal line
+        fr = QFrame(); fr.setLineWidth(0.5); fr.setFrameShape(QFrame.HLine)
+        vbox2.addWidget(fr)
+        vbox2.setAlignment(fr, Qt.AlignTop)
+
+
+
+        vbox2.addLayout(valhbox, Qt.AlignTop)
 
         vbox2.addStretch(1)
         vbox2.addWidget(cmap_label)           # Adding the colormap label
@@ -420,30 +454,70 @@ class KMTEditor(QMainWindow):
         vbox2.addWidget(self.colorbar)
         vbox2.setAlignment(self.colorbar, Qt.AlignCenter)
         vbox2.addStretch(1)
+
+        helpbox = QVBoxLayout()
+
+        help_title = QLabel("Help")
+        font = QFont("SansSerif", 14)
+        font.setBold(True)
+        help_title.setFont(font)
+
+        helpbox.addWidget(help_title); helpbox.setAlignment(help_title, Qt.AlignTop)
+
+        helpgrid = QGridLayout()
+        helpgrid.setSpacing(5)
+
+        helpgrid.addWidget(QLabel("Key"),                 0, 0, 1, 1,Qt.AlignLeft)
+        helpgrid.addWidget(QLabel("Action"),              0, 1, 1, 1, Qt.AlignLeft)
+        helpgrid.addWidget(QLabel("up, down,left,right"), 1, 0, 1, 1, Qt.AlignLeft)
+        helpgrid.addWidget(QLabel("move cursor"),         1, 1, 1, 1, Qt.AlignLeft)
+        helpgrid.addWidget(QLabel("h,j,k,l"),             2, 0, 1, 1, Qt.AlignLeft)
+        helpgrid.addWidget(QLabel("move view"),           2, 1, 1, 1, Qt.AlignLeft)
+        helpgrid.addWidget(QLabel("a"),                   3, 0, 1, 1, Qt.AlignLeft)
+        helpgrid.addWidget(QLabel("replace cell value with 9 point average"),         3, 1, 1, 1, Qt.AlignLeft)
+        helpgrid.addWidget(QLabel("="),                   4, 0, 1, 1, Qt.AlignLeft)
+        helpgrid.addWidget(QLabel("enter new value for cell"),         4, 1, 1, 1, Qt.AlignLeft)
+        helpgrid.addWidget(QLabel("c"),                   5, 0, 1, 1, Qt.AlignLeft)
+        helpgrid.addWidget(QLabel("copy value under cursor into buffer"),         5, 1, 1, 1, Qt.AlignLeft)
+        helpgrid.addWidget(QLabel("v"),                   6, 0, 1, 1, Qt.AlignLeft)
+        helpgrid.addWidget(QLabel("paste value in buffer"),6, 1, 1, 1, Qt.AlignLeft)
+        helpgrid.addWidget(QLabel("m"),                   7, 0, 1, 1, Qt.AlignLeft)
+        helpgrid.addWidget(QLabel("move focus to color selector"),         7, 1, 1, 1, Qt.AlignLeft)
+        helpgrid.addWidget(QLabel("Escape"), 8, 0, 1, 1, Qt.AlignLeft)
+        helpgrid.addWidget(QLabel("move focus to main view"),         8, 1, 1, 1, Qt.AlignLeft)
+
+
+
+        helpbox.addLayout(helpgrid); helpbox.setAlignment(helpgrid, Qt.AlignTop)
+
+
+        vbox2.addLayout(helpbox)
+        vbox2.setAlignment(helpbox, Qt.AlignBottom)
+
+
         hbox = QHBoxLayout()
         hbox.addLayout(vbox)
         hbox.addLayout(vbox2)
-        
+
         self.main_frame.setLayout(hbox)
         self.setCentralWidget(self.main_frame)
         self.main_frame.setFocus()
-    
-    
+
+
     def draw_preview_worldmap(self):
         """
-        This function draws the world map in the preview window on the top right hand corner 
+        This function draws the world map in the preview window on the top right hand corner
         of the application.
         """
         m = Basemap(projection='cyl', lon_0=180, llcrnrlat=-90,urcrnrlat=90,\
             llcrnrlon=0,urcrnrlon=360,resolution='c', ax=self.preview_axes)
         self.preview_axes.set_xlim([0,360])
-        
+
         m.drawcoastlines(linewidth=0.5)
+        m.fillcontinents()
         self.preview_axes.set_ylim([-90,90])
-        # self.draw_preview_rectangle()
-        self.preview_fig.tight_layout()
-    
-    
+
+
     def draw_preview_rectangle(self):
         """
         This function draws the Rectangle, which indicates the current region being shown
