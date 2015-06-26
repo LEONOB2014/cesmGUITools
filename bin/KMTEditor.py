@@ -219,14 +219,21 @@ class KMTEditor(QMainWindow):
         """
         super(KMTEditor, self).__init__(None)
         self.setWindowTitle('KMTEditor - {0}'.format(fname))
-        
+
         #  Creating a variable that contains all the data
         self.dc = DataContainer(dwy, dwx, fname, datavar)
-        
+
         self.cursor = self.dc.getCursor()  # Defining a cursor on the data
         # This is the Rectangle boundary drawn on the world map that bounds the region
         # under the view. At the start of the program it's value is None
-        self.prvrect = None                
+        self.prvrect = None
+
+        # This stores the matplotlib text objects used in the rendering of the colorbar
+        # This is used by the function draw_colorbar()
+        self.colorbarlabels = []
+        # self.colorbar_gradient is used by the function draw_colorbar()
+        self.colorbar_gradient = np.vstack((np.linspace(0, 1, 256), np.linspace(0, 1, 256)))
+
 
         # The previously updated value
         self.buffer_value = None
@@ -269,15 +276,15 @@ class KMTEditor(QMainWindow):
         else:
             self.dc.updateCursorPosition(e)
             self.draw_cursor()
-    
-    
+
+
     def create_main_window(self):
         """
-        This function creates the main window of the program. 
+        This function creates the main window of the program.
         """
         self.main_frame = QWidget()
         self.main_frame.setMinimumSize(QSize(700, 700))
-        
+
         self.dpi = 100
         self.fig = plt.Figure((6, 6), dpi=self.dpi, facecolor='w', edgecolor='w')
         self.canvas = FigureCanvas(self.fig)
@@ -293,6 +300,19 @@ class KMTEditor(QMainWindow):
         self.preview_fig.canvas.mpl_connect('button_press_event', self.onclick)
         
         # Since we have only one plot, we can use add_axes 
+        # Stuff for the colorbar >>>>>>>>>>>>>>>>>>>>>>>>>
+        self.colorbar_frame = QWidget()
+        self.colorbar_fig   = plt.Figure((3,0.4), dpi=self.dpi, facecolor='w', edgecolor='w')
+        self.colorbar       = FigureCanvas(self.colorbar_fig)
+        self.colorbar.setParent(self.colorbar_frame)
+        self.colorbar_axes  = self.colorbar_fig.add_subplot(111)
+        self.colorbar_fig.subplots_adjust(top=1.0, bottom=0.35, left=0.02, right=0.97) #Tightening the area around the subplot
+        self.colorbar_fig.patch.set_facecolor('none') # Making the figure background transparent
+
+        self.colorbar_axes.get_xaxis().set_visible(False)
+        self.colorbar_axes.get_yaxis().set_visible(False)
+        # Stuff for the colorbar <<<<<<<<<<<<<<<<<<<<<<<<<
+
         # instead of add_subplot, but then the subplot
         # configuration tool in the navigation toolbar wouldn't
         # work.
@@ -395,11 +415,11 @@ class KMTEditor(QMainWindow):
         vbox2.addLayout(hbox, Qt.AlignTop)
 
         vbox2.addStretch(1)
-        vbox2.addWidget(cmap_label)
-        vbox2.addWidget(self.colormaps)
+        vbox2.addWidget(cmap_label)           # Adding the colormap label
+        vbox2.addWidget(self.colormaps)       # Adidng the colormap selector
+        vbox2.addWidget(self.colorbar)
+        vbox2.setAlignment(self.colorbar, Qt.AlignCenter)
         vbox2.addStretch(1)
-            
-        
         hbox = QHBoxLayout()
         hbox.addLayout(vbox)
         hbox.addLayout(vbox2)
@@ -439,40 +459,64 @@ class KMTEditor(QMainWindow):
         # dlon and dlat are the width and height of the preview rectangle
         dlon = abs(rect_llc_x - self.dc.lons[min(self.dc.sj+self.dc.ncols-1, self.dc.nx-1)])
         dlat = self.dc.lats[self.dc.si] - rect_llc_y
-        
+
         self.prvrect = mpatches.Rectangle((rect_llc_x, rect_llc_y), dlon, dlat, linewidth=1, facecolor='g', alpha=0.3)
         self.preview_axes.add_patch(self.prvrect)
         self.preview.draw()
+
+
+    def draw_colorbar(self):
+        """
+        This function draws the colorbar and the labels for the colorbar. 
+        """
+        # First clear the colorbar axes
+        self.colorbar_axes.cla()
+        # Get the current selected colormap
+        cmap = mpl.cm.get_cmap(self.maps[self.colormaps.currentIndex()])
+        # Plot the colormap
+        self.colorbar_axes.imshow(self.colorbar_gradient, aspect='auto', cmap=cmap)
+        pos = list(self.colorbar_axes.get_position().bounds)
+        dx = (pos[2])/6.  # The spacing between the labels
+
+        if self.colorbarlabels != []:
+            # Delete and clear the text labels
+            while self.colorbarlabels: self.colorbarlabels.pop().remove()
         
-    
+        for i,l in enumerate([1,10,20,30,40,50,60]):
+            self.colorbarlabels.append(self.colorbar_fig.text(pos[0]+(i*dx), 0.01, str(l), va='bottom', ha='center', fontsize=10))
+        self.colorbar.draw()
+
+
+
     def draw_cursor(self, noremove=False):
         if self.cursor.marker and (not noremove): self.cursor.marker.remove()
-        # The increment by 0.5 below is done so that the center of the marker is shifted 
+        # The increment by 0.5 below is done so that the center of the marker is shifted
         # so that the top left corner of the square marker conicides with the top right corner
         # of each pixel. The value of 0.5 comes simply because each pixel are offset by 1 in each dimension.
         _cx, _cy = self.cursor.x+0.5, self.cursor.y+0.5
-        self.cursor.marker = self.axes.scatter(_cx, _cy, s=55, 
-                             marker='s', edgecolor="k", facecolor='none', linewidth=2)  
-        self.set_information(_cy, _cx)        
+        self.cursor.marker = self.axes.scatter(_cx, _cy, s=55,
+                             marker='s', edgecolor="k", facecolor='none', linewidth=2)
+        self.set_information(_cy, _cx)
         self.canvas.draw()
-        
-    
-    
+
+
+
     def render_view(self):
+        self.draw_colorbar()
         self.axes.clear()
         # Either select the colormap through the combo box or specify a custom colormap
         cmap = mpl.cm.get_cmap(self.maps[self.colormaps.currentIndex()])
-        self.axes.pcolor(self.dc.masked_view, cmap=cmap, edgecolors='w', linewidths=0.5, 
+        self.axes.pcolor(self.dc.masked_view, cmap=cmap, edgecolors='w', linewidths=0.5,
                          vmin=KMTEditor.KMT_MIN_VAL, vmax=KMTEditor.KMT_MAX_VAL)
 
         tmp1 = self.dc.nrows
         tmp2 = self.dc.ncols
 
         # This is for drawing the black contour line for the continents
-        self.axes.contour(self.dc.view, levels=[0], colors='k', linewidth=1.5, 
-                          interpolation="nearest", origin="lower", 
+        self.axes.contour(self.dc.view, levels=[0], colors='k', linewidth=1.5,
+                          interpolation="nearest", origin="lower",
                           extents=[0.5,tmp2+0.5, 0.5, tmp1+0.5])
-        
+
         # Setting the axes limits. This helps in setting the right orientation of the plot
         # and in clontrolling how much extra space we want around the scatter plot.
         # I am putting 4% space around the scatter plot
