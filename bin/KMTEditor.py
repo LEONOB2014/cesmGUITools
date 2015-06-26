@@ -29,10 +29,11 @@ from PyCESM.utilities import nccopy
 
 mpl.rc('axes',edgecolor='w')
 
+
 class DataContainer(object):
     """
     DataContainer: A "data container" class for this application which does the job
-    of storing the map and other related data as well as a "cursor" upon this data. 
+    of storing the map and other related data as well as a "cursor" upon this data.
     """
     class Cursor(object):
         def __init__(self):
@@ -55,24 +56,24 @@ class DataContainer(object):
         self.orig_data = np.copy(self.data)
         self.ny, self.nx = self.data.shape
 
-        
+
         self.lon_modulo = 360
-        
+
         # Datawindow variables
         self.view   = None        # The array (actually a numpy view) that stores the data to be displayed in the main window
         self.masked_view = None
         self.nrows  = nrows       # Number of rows to display in the main windows (the 'view')
         self.ncols  = ncols       # Number of cols to display in the main windows
-        self.si     = None        # 0-based row index of the first element 
-        self.sj     = None        # 0-based col index of the first element 
-        
+        self.si     = None        # 0-based row index of the first element
+        self.sj     = None        # 0-based col index of the first element
+
         # Tracking which elements are changed
         # self.longs_grid, self.lats_grid = np.meshgrid(self.lons, self.lats)
         # self.modified = np.zeros((self.ny, self.nx))
-        
+
         # A cursor object on the view
         self.cursor = DataContainer.Cursor()
-    
+
 
     def __read_nc_file(self):
         """ This subroutine reads the netCDF4 data file. """
@@ -89,18 +90,18 @@ class DataContainer(object):
 
 
     def getCursor(self): return self.cursor
-    
-    def getValueUnderCursor(self): 
+
+    def getValueUnderCursor(self):
         # We need to first map the position of the cursor in the view to the position of the
-        # on the global map. 
+        # on the global map.
         ci, cj = self.viewIndex2GlobalIndex(self.cursor.y, self.cursor.x)
         return self.data[ci, cj]
 
 
     def updateCursorPosition(self, event):
         """
-        Updates the current view in the data window. This function is 
-        triggered whenever the user presses the arrow keys. 
+        Updates the current view in the data window. This function is
+        triggered whenever the user presses the arrow keys.
         ARGUMENTS
             event - Qt key press event
         """
@@ -115,10 +116,10 @@ class DataContainer(object):
         elif key == Qt.Key_Right:
             self.cursor.x = min(self.ncols-1, self.cursor.x + 1)
 
-    
+
     def updateView(self, si, sj):
         """
-        Updates the data for the view. 
+        Updates the data for the view.
         ARGUMENTS
             si, sj - the global 0-based i,j indices of the top left corner of the view
         RETURNS
@@ -129,7 +130,7 @@ class DataContainer(object):
         # We need to create the continent mask
         self.masked_view = self.view.view(np.ma.MaskedArray)
 
-        # Now that we have updated the view, and created the masked view of the 
+        # Now that we have updated the view, and created the masked view of the
         # view itself, we need to update the "mask" of the masked view.
         self.updateMask()
 
@@ -137,14 +138,14 @@ class DataContainer(object):
         self.si   = si
         self.sj   = sj
         return self.getViewStatistics()
-    
+
 
     def updateMask(self): self.masked_view.mask = (self.view == 0)
-    
+
 
     def moveView(self, move):
         """
-        Moves the view window over the global dataset in response to the L,R,U,D keys. 
+        Moves the view window over the global dataset in response to the L,R,U,D keys.
         ARGUMENTS
             move : A Qt key value
         RETURNS
@@ -166,7 +167,7 @@ class DataContainer(object):
             new_si = min(self.ny-self.nrows, self.si + row_inc)
             return self.updateView(new_si, self.sj)
 
-    
+
     def modifyValue(self, inp):
         """
         Modify the value for a particular pixel. The location of the pixel is that
@@ -177,34 +178,31 @@ class DataContainer(object):
         ci, cj = self.viewIndex2GlobalIndex(self.cursor.y, self.cursor.x)
         # self.modified[ci, cj] = 1
         self.data[ci, cj] = int(float(inp))
-        
+
         # Now that we have changed a value, we have to update the continent mask as
         # well, in case the update entailed creating or destroying land.
         self.updateMask()
 
 
-    def getAverage(self, center=False):
+    def getAverage(self):
         """
         Returns the average value at the cursor computed from the values of the surrounding cells. This
         is a 4 point average.
         If center==True, then includes the cell at which the cursor is in the calculation of the average,
-        in which case it will be a 5 point average. 
+        in which case it will be a 5 point average.
         """
-        ci, cj = self.viewIndex2GlobalIndex(self.cursor.y, self.cursor.x)
-        _sum   = self.data[ci,cj-1] + self.data[ci,cj+1] + self.data[ci-1,cj] + self.data[ci+1,cj]
-        if center: 
-            _sum += self.data[ci,cj]
-            return _sum/5.
-        else:
-            return _sum/4.
+        ci, cj = self.cursor.y, self.cursor.x
+        _sum   = self.masked_view[ci-1:ci+2,cj-1:cj+2].sum()
+        return _sum/(self.masked_view[ci-1:ci+2,cj-1:cj+2].count())
+
 
 
     def viewIndex2GlobalIndex(self, i, j):
         """ Converts an i,j index into the data window into an index for the
         same element into the global data. """
         return (self.si + i, self.sj + j)
-    
-    
+
+
 
 class KMTEditor(QMainWindow):
 
@@ -245,8 +243,8 @@ class KMTEditor(QMainWindow):
         self.draw_preview_worldmap()
         self.render_view()
         self.statusBar().showMessage('KMTEditor 2015')
-    
-    
+
+
     def keyPressEvent(self, e):
         if e.key() == Qt.Key_Equal:
             # Pressing = for edit
@@ -258,9 +256,6 @@ class KMTEditor(QMainWindow):
             self.statusBar().showMessage('Value copied: {0}'.format(self.buffer_value), 2000)
         elif e.key() == Qt.Key_A:
             # Get the 5-point average and update the value
-            self.update_value_2(self.dc.getAverage(center=True))
-        elif e.key() == Qt.Key_F:
-            # Get the 4-point average and update the value
             self.update_value_2(self.dc.getAverage())
         elif e.key() == Qt.Key_M:
             self.colormaps.setFocus()
@@ -486,8 +481,8 @@ class KMTEditor(QMainWindow):
         self.canvas.draw()
         self.fig.tight_layout()
         self.draw_cursor(noremove=True)
-    
-    
+
+
 
 
     def update_value(self, inp=None):
@@ -498,24 +493,24 @@ class KMTEditor(QMainWindow):
             self.dc.modifyValue(inp)     # Modify the data array
             self.buffer_value = inp
             self.statusBar().showMessage('Value changed: {0}'.format(inp), 2000)
-            self.set_stats_info(self.dc.getViewStatistics()) 
+            self.set_stats_info(self.dc.getViewStatistics())
             self.inputbox.clear()        # Now clear the input box
             self.render_view()           # Render the new view (which now contains the updated value)
             self.main_frame.setFocus()   # Bring focus back to the view
-    
-    
+
+
     def update_value_2(self, val):
         """
         Updates the value at the current cursor position using the input val.
         """
         self.dc.modifyValue(val)     # Modify the data array
         self.statusBar().showMessage('Value changed: {0}'.format(val), 2000)
-        self.set_stats_info(self.dc.getViewStatistics()) 
-        self.render_view()           # Render the new view (which now contains the updated value)            
+        self.set_stats_info(self.dc.getViewStatistics())
+        self.render_view()           # Render the new view (which now contains the updated value)
 
 
     def InputValueIsAcceptable(self, inp):
-        """ This functions checks to see if the user has entered a valid 
+        """ This functions checks to see if the user has entered a valid
             vlaue kmt value. Returns true if the input value is acceptable. """
         tt = float(inp)
         if (tt != int(tt)):
@@ -558,7 +553,7 @@ class KMTEditor(QMainWindow):
         if (event.xdata == None) or (event.ydata == None): return
         px = np.where(abs(self.dc.lons - event.xdata) < 0.5)[0][0]
         py = np.where(abs(self.dc.lats - event.ydata) < 0.5)[0][0]
-        # 2. Update the view data array 
+        # 2. Update the view data array
         self.set_stats_info(self.dc.updateView(py, px))
         # 3. Render the view
         self.render_view()
@@ -567,19 +562,19 @@ class KMTEditor(QMainWindow):
         self.cursor.y = 0
         # 5. Draw the cursor
         self.draw_cursor()
-        # 6. Update the preview 
+        # 6. Update the preview
         # self.draw_preview_rectangle()
 
-    
+
     def on_about(self):
         msg = """ Edit 2D geophysical field.  """
         QMessageBox.about(self, "About", msg.strip())
-    
-    
+
+
     def save_data(self):
         """
         Saves the data to the netCDF4 file from which input data was read in. First, the program asks
-        for a variable name to use, but it remembers this variable name for subsequent saves. 
+        for a variable name to use, but it remembers this variable name for subsequent saves.
         """
 
         # We construct a standard output name of the form: inputname_fixed.nc
@@ -587,7 +582,7 @@ class KMTEditor(QMainWindow):
 
         # Now we check if the file exists. Then we must ask the user if she wants to overwrite the file
         if os.path.exists(ofile):
-            reply = QMessageBox.question(self, 'Message', "An output file exists. Do you want to overwrite?", 
+            reply = QMessageBox.question(self, 'Message', "An output file exists. Do you want to overwrite?",
                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
 
             if reply == QMessageBox.Yes:
@@ -614,10 +609,10 @@ class KMTEditor(QMainWindow):
         self.statusBar().showMessage('Saved to file: %s' % ofile, 2000)
 
 
-    
-    
-    def create_action(self, text, slot=None, shortcut=None, 
-                      icon=None, tip=None, checkable=False, 
+
+
+    def create_action(self, text, slot=None, shortcut=None,
+                      icon=None, tip=None, checkable=False,
                       signal="triggered()"):
         action = QAction(text, self)
         if icon is not None:
@@ -632,34 +627,34 @@ class KMTEditor(QMainWindow):
         if checkable:
             action.setCheckable(True)
         return action
-    
-    
+
+
     def add_actions(self, target, actions):
         for action in actions:
             if action is None:
                 target.addSeparator()
             else:
                 target.addAction(action)
-    
 
-    def create_menu(self):        
+
+    def create_menu(self):
         self.file_menu = self.menuBar().addMenu("&File")
-        
+
         load_file_action = self.create_action("&Save Data",
-            shortcut="Ctrl+S", slot=self.save_data, 
+            shortcut="Ctrl+S", slot=self.save_data,
             tip="Save the data array")
-        
+
         self.add_actions(self.file_menu, (load_file_action,))
 
         self.help_menu = self.menuBar().addMenu("&Help")
-        about_action = self.create_action("&About", 
-            shortcut='F1', slot=self.on_about, 
+        about_action = self.create_action("&About",
+            shortcut='F1', slot=self.on_about,
             tip='About KMTEditor')
         self.add_actions(self.help_menu, (about_action,))
 
 
     def closeEvent(self, event):
-        reply = QMessageBox.question(self, 'Message', "There are unsaved changes. Are you sure you want to quit?", 
+        reply = QMessageBox.question(self, 'Message', "There are unsaved changes. Are you sure you want to quit?",
                 QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
 
         if reply == QMessageBox.Yes:
@@ -667,8 +662,8 @@ class KMTEditor(QMainWindow):
         else:
             event.ignore()
 
-    
-    
+
+
 def main():
     app = QApplication([])   # Create an application
 
