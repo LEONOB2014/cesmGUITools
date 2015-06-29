@@ -1,3 +1,4 @@
 *.txt
 test.py
-data.nc.bak
+*.nc.bak
+*.nc
