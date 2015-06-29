@@ -197,17 +197,18 @@ class DataContainer(object):
 	def getAverage(self, center=False):
 		"""
 		Returns the average value at the cursor computed from the values of the surrounding cells. This
-		is a 4 point average.
+		is a 8 point average.
 		If center==True, then includes the cell at which the cursor is in the calculation of the average,
-		in which case it will be a 5 point average. 
+		in which case it will be a 9 point average. 
 		"""
 		ci, cj = self.viewIndex2GlobalIndex(self.cursor.y, self.cursor.x)
-		_sum   = self.data[ci,cj-1] + self.data[ci,cj+1] + self.data[ci-1,cj] + self.data[ci+1,cj]
+		_sum   = self.data[ci-1:ci+2,cj-1:cj+2].sum()
 		if center: 
 			_sum += self.data[ci,cj]
-			return _sum/5.
+			return _sum/9.
 		else:
-			return _sum/4.
+			_sum -= self.data[ci,cj]
+			return _sum/8.
 
 
 	def viewIndex2GlobalIndex(self, i, j):
