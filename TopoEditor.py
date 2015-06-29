@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-GeoEditor.py
+TopoEditor.py
 
 This program allows one to edit a 2D latitude-longitude gridded
 data pixel for pixel.
@@ -218,7 +218,7 @@ class DataContainer(object):
 	
 	
 
-class GeoEditor(QMainWindow):    
+class TopoEditor(QMainWindow):    
 
 	def __init__(self, fname, datavar, dwx=60, dwy=60, scale=1.0):
 		"""
@@ -228,8 +228,8 @@ class GeoEditor(QMainWindow):
 			dwx, dwy - size of the DataContainer in number of array elements
 			scale    - A float that will be multiplied with the data to scale the data
 		"""
-		super(GeoEditor, self).__init__(None)
-		self.setWindowTitle('GeoEditor - {0}'.format(fname))
+		super(TopoEditor, self).__init__(None)
+		self.setWindowTitle('TopoEditor - {0}'.format(fname))
 		
 		#  Creating a variable that contains all the data
 		self.dc = DataContainer(dwy, dwx, fname, datavar, scale)
@@ -256,7 +256,7 @@ class GeoEditor(QMainWindow):
 
 		self.draw_preview_worldmap()
 		self.render_view()
-		self.statusBar().showMessage('GeoEditor 2015')
+		self.statusBar().showMessage('TopoEditor 2015')
 	
 	
 	def keyPressEvent(self, e):
@@ -634,7 +634,7 @@ class GeoEditor(QMainWindow):
 		self.help_menu = self.menuBar().addMenu("&Help")
 		about_action = self.create_action("&About", 
 			shortcut='F1', slot=self.on_about, 
-			tip='About GeoEditor')
+			tip='About TopoEditor')
 		self.add_actions(self.help_menu, (about_action,))
 
 
@@ -652,14 +652,14 @@ class GeoEditor(QMainWindow):
 def main():
 	app = QApplication([])   # Create an application
 
-	parser = argparse.ArgumentParser(description='GeoEditor', add_help=False)
+	parser = argparse.ArgumentParser(description='TopoEditor', add_help=False)
 	parser.add_argument('fname', nargs=1, type=str, help='name of the netcdf4 data file')
 	parser.add_argument('var',   nargs=1, type=str, help='name of the variable in the netcdf4 file')
 	parser.add_argument('-s',    nargs=1, type=int, help='size of the view in number of pixels', default=[60])
 	parser.add_argument('--scale', nargs=1, type=float, help='multiplicative scaling factor for the data', default=[1.0])
 	args = parser.parse_args()
 
-	mw = GeoEditor(args.fname[0], args.var[0], dwx=args.s[0], dwy=args.s[0], scale=args.scale[0])
+	mw = TopoEditor(args.fname[0], args.var[0], dwx=args.s[0], dwy=args.s[0], scale=args.scale[0])
 	mw.show()     # Render the window
 	mw.raise_()   # Bring the PyQt4 window to the front
 	app.exec_()   # Run the application loop
