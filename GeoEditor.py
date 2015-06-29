@@ -31,14 +31,14 @@ mpl.rc('axes',edgecolor='w')
 
 class DataContainer(object):
 	"""
-	DataContainer: The main container class for this application which does the job
-	of storing the map and other related data as well as the cursor on this data. 
+	DataContainer: A "data container" class for this application which does the job
+	of storing the map and other related data as well as a "cursor" upon this data. 
 	"""
 	class Cursor(object):
 		def __init__(self):
-			self.marker = None
-			self.x = 0
-			self.y = 0
+			self.marker = None   # The symbol which is used to denote the marker. Leave it as 'None' to show a square.
+			self.x = 0           # X-position of the cursor
+			self.y = 0           # Y-position of the cursor
 
 
 	def __init__(self, nrows, ncols, fname, datavar, scale):
@@ -81,6 +81,9 @@ class DataContainer(object):
 	
 
 	def __read_nc_file(self):
+		""" This subroutine reads the netCDF4 data file. It looks for common names
+		of the latitude and longitude variables in the file. If it cannot find any
+		one of these coordinates, then it raises and error. """
 		self.lons = None
 		self.lats = None
 		ncfile = Dataset(self.fname, "r", format="NETCDF4")
@@ -114,6 +117,8 @@ class DataContainer(object):
 	def getCursor(self): return self.cursor
 	
 	def getValueUnderCursor(self): 
+		# We need to first map the position of the cursor in the view to the position of the
+		# on the global map. 
 		ci, cj = self.viewIndex2GlobalIndex(self.cursor.y, self.cursor.x)
 		return self.data[ci, cj]
 
@@ -126,7 +131,7 @@ class DataContainer(object):
 			event - Qt key press event
 		"""
 		key = event.key()
-		on_boundary = None   #This will store which boundary if any we've reached
+		# on_boundary = None   # This will store which boundary if any we've reached
 		if key == Qt.Key_Up:
 			self.cursor.y = max(0, self.cursor.y - 1)
 		elif key == Qt.Key_Down:
@@ -142,6 +147,8 @@ class DataContainer(object):
 		Updates the data for the view. 
 		ARGUMENTS
 			si, sj - the global 0-based i,j indices of the top left corner of the view
+		RETURNS
+			Statistics of the newly updated view (a tuple with the min, max, and the mean for the new view)
 		"""
 		self.view = self.data[si:si+self.nrows, sj:sj+self.ncols].view()
 		self.si = si
@@ -155,7 +162,7 @@ class DataContainer(object):
 		ARGUMENTS
 			move : A Qt key value
 		RETURNS
-			a tuple with the min, max, and the mean for the new view
+			Statistics of the newly updated view (a tuple with the min, max, and the mean for the new view)
 		"""
 		col_inc = int(self.ncols*0.25)  # Column increment
 		row_inc = int(self.nrows*0.25)  # Row increment
@@ -176,7 +183,7 @@ class DataContainer(object):
 	
 	def modifyValue(self, input):
 		"""
-		Modify the value fot a particular pixel. The location of the pixel is that
+		Modify the value for a particular pixel. The location of the pixel is that
 		determined by the current position of the cursor.
 		ARGUMENTS
 			input - a string containing a float (note: no data validity check is 
@@ -218,6 +225,7 @@ class GeoEditor(QMainWindow):
 			fname    - Name of the netcdf4 file
 			datavar  - Name of the data variable in the file for which to plot
 			dwx, dwy - size of the DataContainer in number of array elements
+			scale    - A float that will be multiplied with the data to scale the data
 		"""
 		super(GeoEditor, self).__init__(None)
 		self.setWindowTitle('GeoEditor - {0}'.format(fname))
@@ -226,12 +234,15 @@ class GeoEditor(QMainWindow):
 		self.dc = DataContainer(dwy, dwx, fname, datavar, scale)
 		
 		self.cursor = self.dc.getCursor()  # Defining a cursor on the data
-		self.prvrect = None  # The Rectangle object on the world map
+		# This is the Rectangle boundary drawn on the world map that bounds the region
+		# under the view. At the start of the program it's value is None
+		self.prvrect = None                
 
-		# The previously upadte value
+		# The previously updated value
 		self.buffer_value = None
 
-		# For saving the modified data. save_fmt is a format string to use with numpy's savetxt
+		# The netcdf variable name for saving the modified data. The user will be asked
+		# to enter the value when saving. 
 		self.save_var   = None
 
 		self.maps = mpl.cm.datad.keys()  # The names of colormaps available
@@ -638,7 +649,7 @@ class GeoEditor(QMainWindow):
 	
 	
 def main():
-	app = QApplication([])
+	app = QApplication([])   # Create an application
 
 	parser = argparse.ArgumentParser(description='GeoEditor', add_help=False)
 	parser.add_argument('fname', nargs=1, type=str, help='name of the netcdf4 data file')
