@@ -3,8 +3,7 @@
 """
 KMTEditor.py
 
-This program allows one to edit a 2D latitude-longitude gridded
-data pixel for pixel.
+This program allows one to edit a 2D KMT data pixel for pixel.
 
 Author : Deepak Chandan
 Date   : June 24th, 2015
@@ -697,6 +696,8 @@ class KMTEditor(QMainWindow):
 
         # We construct a standard output name of the form: inputname_fixed.nc
         ofile = self.dc.fname.split(".")[0]+"_fixed.nc"
+
+        clobber = False
 
         # Now we check if the file exists. Then we must ask the user if she wants to overwrite the file
         if os.path.exists(ofile):
