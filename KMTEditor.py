@@ -60,7 +60,7 @@ class DataContainer(object):
 
         # Datawindow variables
         self.view   = None        # The array (actually a numpy view) that stores the data to be displayed in the main window
-        self.masked_view = None
+        self.view_masked = None   # A masked version of self.view
         self.nrows  = nrows       # Number of rows to display in the main windows (the 'view')
         self.ncols  = ncols       # Number of cols to display in the main windows
         self.si     = None        # 0-based row index of the first element
@@ -126,8 +126,9 @@ class DataContainer(object):
         """
         self.view = self.data[si:si+self.nrows, sj:sj+self.ncols].view()
 
-        # We need to create the continent mask
-        self.masked_view = self.view.view(np.ma.MaskedArray)
+        # We need to create the continent mask. We will take this as a masked numpy view
+        # on the self.view object.
+        self.view_masked = self.view.view(np.ma.MaskedArray)
 
         # Now that we have updated the view, and created the masked view of the
         # view itself, we need to update the "mask" of the masked view.
@@ -139,7 +140,7 @@ class DataContainer(object):
         return self.getViewStatistics()
 
 
-    def updateMask(self): self.masked_view.mask = (self.view == 0)
+    def updateMask(self): self.view_masked.mask = (self.view == 0)
 
 
     def moveView(self, move):
@@ -263,7 +264,7 @@ class KMTEditor(QMainWindow):
             self.statusBar().showMessage('Value copied: {0}'.format(self.buffer_value), 2000)
         elif e.key() == Qt.Key_A:
             # Get the 5-point average and update the value
-            self.update_value_2(self.dc.getAverage())
+            self.update_value_with_average(self.dc.getAverage())
         elif e.key() == Qt.Key_M:
             self.colormaps.setFocus()
         elif e.key() == Qt.Key_Escape:
@@ -580,7 +581,7 @@ class KMTEditor(QMainWindow):
         self.axes.clear()
         # Either select the colormap through the combo box or specify a custom colormap
         cmap = mpl.cm.get_cmap(self.maps[self.colormaps.currentIndex()])
-        self.axes.pcolor(self.dc.masked_view, cmap=cmap, edgecolors='w', linewidths=0.5,
+        self.axes.pcolor(self.dc.view_masked, cmap=cmap, edgecolors='w', linewidths=0.5,
                          vmin=KMTEditor.KMT_MIN_VAL, vmax=KMTEditor.KMT_MAX_VAL)
 
         tmp1 = self.dc.nrows
@@ -617,7 +618,7 @@ class KMTEditor(QMainWindow):
             self.main_frame.setFocus()   # Bring focus back to the view
 
 
-    def update_value_2(self, val):
+    def update_value_with_average(self, val):
         """
         Updates the value at the current cursor position using the input val.
         """
