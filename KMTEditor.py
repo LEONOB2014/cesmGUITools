@@ -67,8 +67,8 @@ class DataContainer(object):
         self.sj     = None        # 0-based col index of the first element
 
         # Tracking which elements are changed
-        # self.longs_grid, self.lats_grid = np.meshgrid(self.lons, self.lats)
-        # self.modified = np.zeros((self.ny, self.nx))
+        self.changes = np.zeros((self.ny*self.nx, 3), dtype=np.int32)
+        self.changes_row_idx = 0
 
         # A cursor object on the view
         self.cursor = DataContainer.Cursor()
@@ -176,8 +176,11 @@ class DataContainer(object):
             inp - a string containing a float
         """
         ci, cj = self.viewIndex2GlobalIndex(self.cursor.y, self.cursor.x)
-        # self.modified[ci, cj] = 1
-        self.data[ci, cj] = int(float(inp))
+        
+        _tmp = int(float(inp))
+        self.data[ci, cj] = _tmp
+        self.changes[self.changes_row_idx, :] = ci, cj, _tmp
+        self.changes_row_idx += 1
 
         # Now that we have changed a value, we have to update the continent mask as
         # well, in case the update entailed creating or destroying land.
@@ -273,6 +276,7 @@ class KMTEditor(QMainWindow):
         elif e.key() in [Qt.Key_H, Qt.Key_J, Qt.Key_K, Qt.Key_L]:
             self.set_stats_info(self.dc.moveView(e.key()))
             self.render_view()
+            self.render_edited_cells()
             # self.draw_preview_rectangle()
         else:
             self.dc.updateCursorPosition(e)
@@ -575,6 +579,39 @@ class KMTEditor(QMainWindow):
         self.canvas.draw()
 
 
+    def render_edited_cells(self):
+        """
+        This function draws a box around cells that have been edited, thereby highlighting
+        them from the other cells. 
+        """
+        changes_row_idx = self.dc.changes_row_idx
+
+        # We only need to go ahead if a change has been made, i.e. changes_row_idx is larger than 0
+        if changes_row_idx > 0:
+            # We are creating simple views to make the code for this function simpler
+            change_rows = self.dc.changes[:self.dc.changes_row_idx, 0].view()  # A view on rows indices that have been changed
+            change_cols = self.dc.changes[:self.dc.changes_row_idx, 1].view()  # A view on column indices that have been changed
+
+            # Retrieving some class variables and storing for speed
+            si    = self.dc.si
+            sj    = self.dc.sj
+            nrows = self.dc.nrows
+            ncols = self.dc.ncols
+
+            # We select the indices that lie within the view box
+            indices_of_interest = np.logical_and(np.logical_and(change_rows >= si, 
+                                                                change_rows <= (si+nrows)), 
+                                                 np.logical_and(change_cols >= sj, 
+                                                                change_cols <= (sj+ncols)))
+
+            _i = change_rows[indices_of_interest] + 0.5 - si
+            _j = change_cols[indices_of_interest] + 0.5 - sj
+            
+            self.axes.scatter(_j, _i, s=38, marker='s', edgecolor="k", facecolor='none', linewidth=1)
+            self.canvas.draw()
+        
+
+
 
     def render_view(self):
         self.draw_colorbar()
@@ -599,6 +636,7 @@ class KMTEditor(QMainWindow):
         self.axes.set_xlim([0 - int(tmp2*0.02), int(tmp2*1.02)])
         self.canvas.draw()
         self.fig.tight_layout()
+        # self.render_edited_cells()
         self.draw_cursor(noremove=True)
 
 
@@ -615,6 +653,7 @@ class KMTEditor(QMainWindow):
             self.set_stats_info(self.dc.getViewStatistics())
             self.inputbox.clear()        # Now clear the input box
             self.render_view()           # Render the new view (which now contains the updated value)
+            self.render_edited_cells()
             self.main_frame.setFocus()   # Bring focus back to the view
 
 
@@ -626,6 +665,7 @@ class KMTEditor(QMainWindow):
         self.statusBar().showMessage('Value changed: {0}'.format(val), 2000)
         self.set_stats_info(self.dc.getViewStatistics())
         self.render_view()           # Render the new view (which now contains the updated value)
+        self.render_edited_cells()
 
 
     def InputValueIsAcceptable(self, inp):
