@@ -191,8 +191,9 @@ class DataContainer(object):
         in which case it will be a 5 point average.
         """
         ci, cj = self.cursor.y, self.cursor.x
-        _sum   = self.masked_view[ci-1:ci+2,cj-1:cj+2].sum()
-        return _sum/(self.masked_view[ci-1:ci+2,cj-1:cj+2].count())
+        _sum   = self.view_masked[ci-1:ci+2,cj-1:cj+2].sum()
+        # Rounding the floating point to the **nearest** integer
+        return np.round(_sum/(self.view_masked[ci-1:ci+2,cj-1:cj+2].count()))
 
 
 
