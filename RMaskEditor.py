@@ -788,9 +788,21 @@ class RMaskEditor(QMainWindow):
         ARGUMENTS
             points - 
         """
+        # First we convert from view coordinates to global coordinates
         points_i, points_j = self.dc.viewIndex2GlobalIndex(points[:,1], points[:,0])
-        self.dc.data[points_i,points_j] = 10
-        self.render_view(clear=False)
+
+        # We prompt user to enter a value to define the oceanic region
+        val, ok = QInputDialog.getText(self, "", "Enter oceanic region value:",)
+        if (not ok):
+            self.statusBar().showMessage('No ocean cells changed', 2000)
+            return
+        else:
+            self.dc.data[points_i,points_j] = int(str(val))
+            self.render_view(clear=False)
+
+            self.draw_preview_worldmap()  # We update the preview map
+            self.statusBar().showMessage('{0} ocean cells changed'.format(len(points_i), 2000))
+
 
 
 
