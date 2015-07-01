@@ -54,7 +54,6 @@ class LassoTool(object):
         # where the locations are indexed as (x_index, y_index), equivalently
         # as (column_index, row_index). 
         
-        # fig = ax.figure
         self.cid = self.canvas.mpl_connect('button_press_event', self.onpress)
 
 
@@ -416,7 +415,7 @@ class RMaskEditor(QMainWindow):
         rr = QLabel("")
         self.infogrid.addWidget(rr, 1, 1)
 
-        for i, name in enumerate(["Lat", "Lon", "Region"]):
+        for i, name in enumerate(["Lat", "Lon", "I", "J", "Region"]):
             w = QLabel(name)
             w.setFont(font)
             # w.setLineWidth(1)
@@ -425,8 +424,10 @@ class RMaskEditor(QMainWindow):
 
         self.latdisplay  = QLabel("")
         self.londisplay  = QLabel("")
+        self.idisplay    = QLabel("")
+        self.jdisplay    = QLabel("")
         self.valdisplay  = QLabel("")
-        for i,w in enumerate([self.latdisplay, self.londisplay, self.valdisplay]):
+        for i,w in enumerate([self.latdisplay, self.londisplay, self.idisplay, self.jdisplay, self.valdisplay]):
             self.infogrid.addWidget(w, i+2, 1, Qt.AlignLeft)
             w.setFont(font)
         # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
@@ -448,7 +449,9 @@ class RMaskEditor(QMainWindow):
         self.inputbox.returnPressed.connect(self.update_value)
         valhbox.addWidget(self.inputbox)
 
-        for item in [self.statdisplay, self.infodisplay, self.latdisplay, self.londisplay, self.valdisplay, cmap_label]:
+        for item in [self.statdisplay, self.infodisplay, self.latdisplay, \
+                     self.idisplay, self.jdisplay, self.londisplay, \
+                     self.valdisplay, cmap_label]:
             item.setFont(font)
 
 
@@ -554,13 +557,9 @@ class RMaskEditor(QMainWindow):
         This function draws the world map in the preview window on the top right hand corner
         of the application.
         """
-        m = Basemap(projection='cyl', lon_0=180, llcrnrlat=-90,urcrnrlat=90,\
-            llcrnrlon=0,urcrnrlon=360,resolution='c', ax=self.preview_axes)
-        self.preview_axes.set_xlim([0,360])
-
-        m.drawcoastlines(linewidth=0.5)
-        m.fillcontinents()
-        self.preview_axes.set_ylim([-90,90])
+        # cmap = mpl.cm.get_cmap(self.maps[self.colormaps.currentIndex()])
+        self.preview_axes.imshow(self.dc.data, cmap=mpl.cm.Dark2, vmin=0.0, vmax=50.0, interpolation="none", extent=[0, 360, 0, 180])
+        self.preview.draw()
 
 
     def draw_colorbar(self):
@@ -606,7 +605,7 @@ class RMaskEditor(QMainWindow):
         self.draw_colorbar()
         if clear: self.axes.clear()
         # Either select the colormap through the combo box or specify a custom colormap
-        cmap = mpl.cm.get_cmap(self.maps[self.colormaps.currentIndex()])
+        # cmap = mpl.cm.get_cmap(self.maps[self.colormaps.currentIndex()])
         self.axes.pcolor(self.dc.view, cmap=mpl.cm.Dark2, edgecolors='k', linewidths=0.5, vmin=0.0, vmax=50.0)
 
         tmp1 = self.dc.nrows
@@ -627,15 +626,14 @@ class RMaskEditor(QMainWindow):
     def update_value(self, inp=None):
         if inp == None:
             inp = self.inputbox.text()   # Get the value in the text box
-
-        if self.InputValueIsAcceptable(inp):
-            self.dc.modifyValue(inp)     # Modify the data array
-            self.buffer_value = inp
-            self.statusBar().showMessage('Value changed: {0}'.format(inp), 2000)
-            self.set_stats_info(self.dc.getViewStatistics())
-            self.inputbox.clear()        # Now clear the input box
-            self.render_view()           # Render the new view (which now contains the updated value)
-            self.main_frame.setFocus()   # Bring focus back to the view
+            if self.InputValueIsAcceptable(inp):
+                self.dc.modifyValue(inp)     # Modify the data array
+                self.buffer_value = inp
+                self.statusBar().showMessage('Value changed: {0}'.format(inp), 2000)
+                self.set_stats_info(self.dc.getViewStatistics())
+                self.inputbox.clear()        # Now clear the input box
+                self.render_view()           # Render the new view (which now contains the updated value)
+                self.main_frame.setFocus()   # Bring focus back to the view
 
 
 
@@ -664,6 +662,8 @@ class RMaskEditor(QMainWindow):
         i_global, j_global = self.dc.viewIndex2GlobalIndex(i, j) # Convert local indices to global indices
         self.latdisplay.setText("{0:7.3f}".format(self.dc.kmt_lats[i_global, j_global]))
         self.londisplay.setText("{0:7.3f}".format(self.dc.kmt_lons[i_global, j_global]))
+        self.idisplay.setText("{0:3d}".format(int(i_global)))
+        self.jdisplay.setText("{0:3d}".format(int(j_global)))
         try:
             # This will work if the cursor is not over a masked region. Otherwise the returned
             # value will be a masked value and the conversion to int will throw an exception
