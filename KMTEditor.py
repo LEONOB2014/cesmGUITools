@@ -755,13 +755,13 @@ class KMTEditor(QMainWindow):
             else:
                 clobber=False
 
-        if not clobber:
-            # The use has responded to not overwrite, we must now ask for a new filename
-            ofile, ok = QInputDialog.getText(self, "Saving KMT edit", "Enter name of a different output file:",)
-            ofile = str(ofile)
-            if (not ok):
-                self.statusBar().showMessage('Save cancelled', 2000)
-                return
+            if not clobber:
+                # The use has responded to not overwrite, we must now ask for a new filename
+                ofile, ok = QInputDialog.getText(self, "Saving KMT edit", "Enter name of a different output file:",)
+                ofile = str(ofile)
+                if (not ok):
+                    self.statusBar().showMessage('Save cancelled', 2000)
+                    return
 
         # If all is well so far, we have an acceptable output filename and we can proceed with writing.
 
@@ -771,6 +771,7 @@ class KMTEditor(QMainWindow):
 
         ncfile = Dataset(ofile, "a", format="NETCDF4")
         ncfile.variables["kmt"][:,:] = np.flipud(self.dc.data)
+        ncfile.close()
         self.unsaved_changes_exist = False
         self.statusBar().showMessage('Saved to file: %s' % ofile, 2000)
 
