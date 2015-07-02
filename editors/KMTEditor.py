@@ -24,7 +24,7 @@ from matplotlib.collections import PatchCollection
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt4agg import NavigationToolbar2QT as NavigationToolbar
 
-from PyCESM.utilities import nccopy
+from cesmGUITools.utilities import nccopy
 
 mpl.rc('axes',edgecolor='w')
 
