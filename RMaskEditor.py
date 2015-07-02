@@ -416,7 +416,7 @@ class RMaskEditor(QMainWindow):
         rr = QLabel("")
         self.infogrid.addWidget(rr, 1, 1)
 
-        for i, name in enumerate(["Lat", "Lon", "I", "J", "Region"]):
+        for i, name in enumerate(["Lat", "Lon", "I, J", "Region"]):
             w = QLabel(name)
             w.setFont(font)
             # w.setLineWidth(1)
@@ -425,10 +425,9 @@ class RMaskEditor(QMainWindow):
 
         self.latdisplay  = QLabel("")
         self.londisplay  = QLabel("")
-        self.idisplay    = QLabel("")
-        self.jdisplay    = QLabel("")
+        self.idxdisplay  = QLabel("")
         self.valdisplay  = QLabel("")
-        for i,w in enumerate([self.latdisplay, self.londisplay, self.idisplay, self.jdisplay, self.valdisplay]):
+        for i,w in enumerate([self.latdisplay, self.londisplay, self.idxdisplay, self.valdisplay]):
             self.infogrid.addWidget(w, i+2, 1, Qt.AlignLeft)
             w.setFont(font)
         # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
@@ -451,7 +450,7 @@ class RMaskEditor(QMainWindow):
         valhbox.addWidget(self.inputbox)
 
         for item in [self.statdisplay, self.infodisplay, self.latdisplay, \
-                     self.idisplay, self.jdisplay, self.londisplay, \
+                     self.idxdisplay, self.londisplay, \
                      self.valdisplay, cmap_label]:
             item.setFont(font)
 
@@ -594,7 +593,7 @@ class RMaskEditor(QMainWindow):
         _cx, _cy = self.cursor.x+0.5, self.cursor.y+0.5
         self.cursor.marker = self.axes.scatter(_cx, _cy, s=55,
                              marker='s', edgecolor="k", facecolor='none', linewidth=2)
-        self.set_information(_cy, _cx)
+        self.set_information(self.cursor.y, self.cursor.x)
         self.canvas.draw()
 
 
@@ -664,8 +663,7 @@ class RMaskEditor(QMainWindow):
         i_global, j_global = self.dc.viewIndex2GlobalIndex(i, j) # Convert local indices to global indices
         self.latdisplay.setText("{0:7.3f}".format(self.dc.kmt_lats[i_global, j_global]))
         self.londisplay.setText("{0:7.3f}".format(self.dc.kmt_lons[i_global, j_global]))
-        self.idisplay.setText("{0:3d}".format(int(i_global)))
-        self.jdisplay.setText("{0:3d}".format(int(j_global)))
+        self.idxdisplay.setText("{0:3d},{1:3d}".format(int(i_global), int(j_global)))
         try:
             # This will work if the cursor is not over a masked region. Otherwise the returned
             # value will be a masked value and the conversion to int will throw an exception

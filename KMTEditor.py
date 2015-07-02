@@ -279,7 +279,6 @@ class KMTEditor(QMainWindow):
             self.set_stats_info(self.dc.moveView(e.key()))
             self.render_view()
             self.render_edited_cells()
-            # self.draw_preview_rectangle()
         else:
             self.dc.updateCursorPosition(e)
             self.draw_cursor()
@@ -375,10 +374,7 @@ class KMTEditor(QMainWindow):
         self.infogrid.setSpacing(5)
 
 
-        rr = QLabel("")
-        self.infogrid.addWidget(rr, 1, 1)
-
-        for i, name in enumerate(["Lat", "Lon", "KMT"]):
+        for i, name in enumerate(["Lat", "Lon", "KMT", "I, J"]):
             w = QLabel(name)
             w.setFont(font)
             # w.setLineWidth(1)
@@ -388,7 +384,8 @@ class KMTEditor(QMainWindow):
         self.latdisplay  = QLabel("")
         self.londisplay  = QLabel("")
         self.valdisplay  = QLabel("")
-        for i,w in enumerate([self.latdisplay, self.londisplay, self.valdisplay]):
+        self.idxdisplay  = QLabel("")
+        for i,w in enumerate([self.latdisplay, self.londisplay, self.valdisplay, self.idxdisplay]):
             self.infogrid.addWidget(w, i+2, 1, Qt.AlignLeft)
             w.setFont(font)
         # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
@@ -410,7 +407,7 @@ class KMTEditor(QMainWindow):
         self.inputbox.returnPressed.connect(self.update_value)
         valhbox.addWidget(self.inputbox)
 
-        for item in [self.statdisplay, self.infodisplay, self.latdisplay, self.londisplay, self.valdisplay, cmap_label]:
+        for item in [self.statdisplay, self.infodisplay, self.latdisplay, self.londisplay, self.valdisplay, self.idxdisplay, cmap_label]:
             item.setFont(font)
 
 
@@ -481,11 +478,13 @@ class KMTEditor(QMainWindow):
         helpgrid.addWidget(QLabel("h,j,k,l"),             2, 0, 1, 1, Qt.AlignLeft)
         helpgrid.addWidget(QLabel("move view"),           2, 1, 1, 1, Qt.AlignLeft)
         helpgrid.addWidget(QLabel("a"),                   3, 0, 1, 1, Qt.AlignLeft)
-        helpgrid.addWidget(QLabel("replace cell value with 9 point average"),         3, 1, 1, 1, Qt.AlignLeft)
+        # helpgrid.addWidget(QLabel("replace cell value with 9 point average"),         3, 1, 1, 1, Qt.AlignLeft)
+        helpgrid.addWidget(QLabel("replace cell value with 9\npoint average"),         3, 1, 1, 1, Qt.AlignLeft)
         helpgrid.addWidget(QLabel("="),                   4, 0, 1, 1, Qt.AlignLeft)
         helpgrid.addWidget(QLabel("enter new value for cell"),         4, 1, 1, 1, Qt.AlignLeft)
         helpgrid.addWidget(QLabel("c"),                   5, 0, 1, 1, Qt.AlignLeft)
-        helpgrid.addWidget(QLabel("copy value under cursor into buffer"),         5, 1, 1, 1, Qt.AlignLeft)
+        # helpgrid.addWidget(QLabel("copy value under cursor into buffer"),         5, 1, 1, 1, Qt.AlignLeft)
+        helpgrid.addWidget(QLabel("copy value under cursor\ninto buffer"),         5, 1, 1, 1, Qt.AlignLeft)
         helpgrid.addWidget(QLabel("v"),                   6, 0, 1, 1, Qt.AlignLeft)
         helpgrid.addWidget(QLabel("paste value in buffer"),6, 1, 1, 1, Qt.AlignLeft)
         helpgrid.addWidget(QLabel("m"),                   7, 0, 1, 1, Qt.AlignLeft)
@@ -525,26 +524,6 @@ class KMTEditor(QMainWindow):
         self.preview_axes.set_ylim([-90,90])
 
 
-    def draw_preview_rectangle(self):
-        """
-        This function draws the Rectangle, which indicates the current region being shown
-        in the view, in the preview window.
-        """
-        # If a rectangle object exists, then remove it before drawing a new one
-        if self.prvrect: self.prvrect.remove()
-
-        # rect_llc_x and rect_llc_y are the x and y values of the lower left corner of the preview rectangle.
-        rect_llc_x = self.dc.lons[self.dc.sj]
-        rect_llc_y = self.dc.lats[min(self.dc.si+self.dc.nrows-1, self.dc.ny-1)]
-
-        # dlon and dlat are the width and height of the preview rectangle
-        dlon = abs(rect_llc_x - self.dc.lons[min(self.dc.sj+self.dc.ncols-1, self.dc.nx-1)])
-        dlat = self.dc.lats[self.dc.si] - rect_llc_y
-
-        self.prvrect = mpatches.Rectangle((rect_llc_x, rect_llc_y), dlon, dlat, linewidth=1, facecolor='g', alpha=0.3)
-        self.preview_axes.add_patch(self.prvrect)
-        self.preview.draw()
-
 
     def draw_colorbar(self):
         """
@@ -577,7 +556,7 @@ class KMTEditor(QMainWindow):
         _cx, _cy = self.cursor.x+0.5, self.cursor.y+0.5
         self.cursor.marker = self.axes.scatter(_cx, _cy, s=55,
                              marker='s', edgecolor="k", facecolor='none', linewidth=2)
-        self.set_information(_cy, _cx)
+        self.set_information(self.cursor.y, self.cursor.x)
         self.canvas.draw()
 
 
@@ -638,7 +617,6 @@ class KMTEditor(QMainWindow):
         self.axes.set_xlim([0 - int(tmp2*0.02), int(tmp2*1.02)])
         self.canvas.draw()
         self.fig.tight_layout()
-        # self.render_edited_cells()
         self.draw_cursor(noremove=True)
 
 
@@ -698,6 +676,7 @@ class KMTEditor(QMainWindow):
         self.latdisplay.setText("{0:7.3f}".format(self.dc.kmt_lats[i_global, j_global]))
         self.londisplay.setText("{0:7.3f}".format(self.dc.kmt_lons[i_global, j_global]))
         self.valdisplay.setText("{0:3d}".format(int(self.dc.data[i_global, j_global])))
+        self.idxdisplay.setText("{0:3d},{1:3d}".format(int(i_global), int(j_global)))
 
 
     def set_stats_info(self, s):
@@ -712,25 +691,11 @@ class KMTEditor(QMainWindow):
 
 
     def onclick(self, event):
-        # 1. Get the global row, column indices of the point where mouse was clicked
-        if (event.xdata == None) or (event.ydata == None): return
-        px = np.where(abs(self.dc.lons - event.xdata) < 0.5)[0][0]
-        py = np.where(abs(self.dc.lats - event.ydata) < 0.5)[0][0]
-        # 2. Update the view data array
-        self.set_stats_info(self.dc.updateView(py, px))
-        # 3. Render the view
-        self.render_view()
-        # 4. Set the cursor to be at the top-left corner
-        self.cursor.x = 0
-        self.cursor.y = 0
-        # 5. Draw the cursor
-        self.draw_cursor()
-        # 6. Update the preview
-        # self.draw_preview_rectangle()
+        QMessageBox.information(self, "", "KMTEditor does not presently support mouse selection over the preview plot")
 
-
+    
     def on_about(self):
-        msg = """ Edit 2D geophysical field.  """
+        msg = """ Edit KMT levels for the POP ocean model.  """
         QMessageBox.about(self, "About", msg.strip())
 
 

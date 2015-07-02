@@ -310,12 +310,13 @@ class TopoEditor(QMainWindow):
 		
 		
 		self.preview_frame = QWidget()
-		self.preview_fig = plt.Figure((3, 1.5), dpi=self.dpi, facecolor='w', edgecolor='w')
+		self.preview_fig = plt.Figure((3, 1.6), dpi=self.dpi, facecolor='w', edgecolor='w')
 		self.preview = FigureCanvas(self.preview_fig)
 		self.preview.setParent(self.preview_frame)
 		self.preview_axes = self.preview_fig.add_subplot(111)
 		
 		self.preview_fig.canvas.mpl_connect('button_press_event', self.onclick)
+		self.preview_fig.subplots_adjust(top=1, bottom=0, left=0, right=1)
 		
 		# Since we have only one plot, we can use add_axes 
 		# instead of add_subplot, but then the subplot
@@ -449,9 +450,9 @@ class TopoEditor(QMainWindow):
 			self.preview_axes.set_xlim([0,360])
 		
 		m.drawcoastlines(linewidth=0.5)
+		m.fillcontinents()
 		self.preview_axes.set_ylim([-90,90])
 		self.draw_preview_rectangle()
-		self.preview_fig.tight_layout()
 	
 	
 	def draw_preview_rectangle(self):
@@ -483,7 +484,7 @@ class TopoEditor(QMainWindow):
 		_cx, _cy = self.cursor.x+0.5, self.cursor.y+0.5
 		self.cursor.marker = self.axes.scatter(_cx, _cy, s=55, 
 							 marker='s', edgecolor="k", facecolor='none', linewidth=2)  
-		self.set_information(_cy, _cx)        
+		self.set_information(self.cursor.y, self.cursor.x)        
 		self.canvas.draw()
 	
 
