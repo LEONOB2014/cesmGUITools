@@ -247,6 +247,8 @@ class TopoEditor(QMainWindow):
 		# The previously updated value
 		self.buffer_value = None
 
+		self.unsaved_changes_exist = False
+
 		# The netcdf variable name for saving the modified data. The user will be asked
 		# to enter the value when saving. 
 		self.save_var   = None
@@ -544,6 +546,7 @@ class TopoEditor(QMainWindow):
 		if inp == None:
 			inp = self.inputbox.text()   # Get the value in the text box
 		self.dc.modifyValue(inp)     # Modify the data array
+		self.unsaved_changes_exist = True 
 		self.buffer_value = inp
 		self.statusBar().showMessage('Value changed: {0}'.format(inp), 2000)
 		self.set_stats_info(self.dc.getViewStatistics()) 
@@ -558,6 +561,7 @@ class TopoEditor(QMainWindow):
 		Updates the value at the current cursor position using the input val.
 		"""
 		self.dc.modifyValue(val)     # Modify the data array
+		self.unsaved_changes_exist = True 
 		self.statusBar().showMessage('Value changed: {0}'.format(val), 2000)
 		self.set_stats_info(self.dc.getViewStatistics()) 
 		self.render_view()           # Render the new view (which now contains the updated value)   
@@ -631,7 +635,7 @@ class TopoEditor(QMainWindow):
 			dvar = ncfile.variables[self.save_var]
 		dvar[:,:] = self.dc.data/self.dc.scale
 		ncfile.close()
-
+		self.unsaved_changes_exist = False
 		self.statusBar().showMessage('Saved to variable: %s' % self.save_var, 2000)
 
 	
@@ -679,13 +683,14 @@ class TopoEditor(QMainWindow):
 
 
 	def closeEvent(self, event):
-		reply = QMessageBox.question(self, 'Message', "There are unsaved changes. Are you sure you want to quit?", 
-				QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+		if self.unsaved_changes_exist:
+			reply = QMessageBox.question(self, 'Message', "There are unsaved changes. Are you sure you want to quit?", 
+					QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
 
-		if reply == QMessageBox.Yes:
-			event.accept()
-		else:
-			event.ignore()
+			if reply == QMessageBox.Yes:
+				event.accept()
+			else:
+				event.ignore()
 
 	
 	

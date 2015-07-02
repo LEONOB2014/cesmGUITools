@@ -281,6 +281,7 @@ class RMaskEditor(QMainWindow):
         # The previously updated value
         self.buffer_value = None
 
+        self.unsaved_changes_exist = False
 
         self.maps = mpl.cm.datad.keys()  # The names of colormaps available
         self.maps.sort() # Sorting them alphabetically for ease of use
@@ -628,6 +629,7 @@ class RMaskEditor(QMainWindow):
             inp = self.inputbox.text()   # Get the value in the text box
             if self.InputValueIsAcceptable(inp):
                 self.dc.modifyValue(inp)     # Modify the data array
+                self.unsaved_changes_exist = True
                 self.buffer_value = inp
                 self.statusBar().showMessage('Value changed: {0}'.format(inp), 2000)
                 self.set_stats_info(self.dc.getViewStatistics())
@@ -726,6 +728,7 @@ class RMaskEditor(QMainWindow):
 
         ncfile = Dataset(ofile, "a", format="NETCDF4")
         ncfile.variables["kmt"][:,:] = np.flipud(self.dc.data)
+        self.unsaved_changes_exist = False
         self.statusBar().showMessage('Saved to file: %s' % ofile, 2000)
 
 
@@ -774,13 +777,14 @@ class RMaskEditor(QMainWindow):
 
 
     def closeEvent(self, event):
-        reply = QMessageBox.question(self, 'Message', "There are unsaved changes. Are you sure you want to quit?",
-                QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if self.unsaved_changes_exist:
+            reply = QMessageBox.question(self, 'Message', "There are unsaved changes. Are you sure you want to quit?",
+                    QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
 
-        if reply == QMessageBox.Yes:
-            event.accept()
-        else:
-            event.ignore()
+            if reply == QMessageBox.Yes:
+                event.accept()
+            else:
+                event.ignore()
 
 
     def modify_selected_points(self, points):
