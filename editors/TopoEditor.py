@@ -697,6 +697,7 @@ class TopoEditor(QMainWindow):
 	
 def main():
 	app = QApplication([])   # Create an application
+	app.setWindowIcon(QIcon('Resources/topoicon.png'))
 
 	parser = argparse.ArgumentParser(description='TopoEditor', add_help=False)
 	parser.add_argument('fname', nargs=1, type=str, help='name of the netcdf4 data file')
