@@ -23,9 +23,8 @@ from mpl_toolkits.basemap import Basemap
 import matplotlib.patches as mpatches
 from matplotlib.collections import PatchCollection
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
-from matplotlib.backends.backend_qt4agg import NavigationToolbar2QT as NavigationToolbar
 
-from Trident.plots.plot_utils import topography_cmap, make_balanced
+from cesmGUITools.utilities.topoutils import topography_cmap, make_balanced
 
 mpl.rc('axes',edgecolor='w')
 
@@ -526,7 +525,7 @@ class TopoEditor(QMainWindow):
 		# Either select the colormap through the combo box or specify a custom colormap
 		# cmap = mpl.cm.get_cmap(self.maps[self.colormaps.currentIndex()])
 		cmap   = topography_cmap(80, end=0.85)
-		ll, ul = make_balanced(ll=-7.*self.dc.scale, silent=True)
+		ll, ul = make_balanced(ll=-7.*self.dc.scale)
 		self.axes.pcolor(self.dc.view, cmap=cmap, edgecolors='w', linewidths=0.5, vmin=ll, vmax=ul)
 		
 		# Setting the axes limits. This helps in setting the right orientation of the plot

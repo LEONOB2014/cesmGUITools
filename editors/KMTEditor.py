@@ -9,7 +9,7 @@ Author : Deepak Chandan
 Date   : June 24th, 2015
 """
 
-import sys, argparse, os
+import sys, argparse, os, time
 from netCDF4 import Dataset
 import numpy as np
 from PyQt4.QtCore import *
@@ -22,7 +22,6 @@ from mpl_toolkits.basemap import Basemap
 import matplotlib.patches as mpatches
 from matplotlib.collections import PatchCollection
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
-from matplotlib.backends.backend_qt4agg import NavigationToolbar2QT as NavigationToolbar
 
 from cesmGUITools.utilities import nccopy
 
@@ -67,6 +66,7 @@ class DataContainer(object):
         self.sj     = None        # 0-based col index of the first element
 
         # Tracking which elements are changed
+        # The columns store: i index, j index, new value
         self.changes = np.zeros((self.ny*self.nx, 3), dtype=np.int32)
         self.changes_row_idx = 0
 
@@ -242,6 +242,9 @@ class KMTEditor(QMainWindow):
         # The previously updated value
         self.buffer_value = None
 
+        # Stuff for saving data
+        self.ofile = None   # Name of output file
+        self.asked_about_overwrite_permission = False
         self.unsaved_changes_exist = False
 
 
@@ -701,44 +704,85 @@ class KMTEditor(QMainWindow):
 
     def save_data(self):
         """
-        Saves the data to the netCDF4 file from which input data was read in. First, the program asks
-        for a variable name to use, but it remembers this variable name for subsequent saves.
+        Saves the data to a netCDF4 file. The program tries to construct a default format of
+        output filename, but if it exists, it asks the user whether to overwrite it. If the
+        user does not want to overwrite, she is asked to enter a new filename. 
         """
 
         # We construct a standard output name of the form: inputname_fixed.nc
-        ofile = self.dc.fname.split(".")[0]+"_fixed.nc"
-
-        clobber = False
+        if self.ofile is None: self.ofile = self.dc.fname.split(".")[0]+"_fixed.nc"
 
         # Now we check if the file exists. Then we must ask the user if she wants to overwrite the file
-        if os.path.exists(ofile):
-            reply = QMessageBox.question(self, 'Message', "An output file exists. Do you want to overwrite?",
-                    QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if not self.asked_about_overwrite_permission:
+            clobber = False
+            if os.path.exists(self.ofile):
+                reply = QMessageBox.question(self, 'Saving file...', "The output file {0} exists. Overwrite?".format(self.ofile),
+                        QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
 
-            if reply == QMessageBox.Yes:
-                clobber=True
-            else:
-                clobber=False
+                if reply == QMessageBox.Yes: clobber=True
 
-            if not clobber:
-                # The use has responded to not overwrite, we must now ask for a new filename
-                ofile, ok = QInputDialog.getText(self, "Saving KMT edit", "Enter name of a different output file:",)
-                ofile = str(ofile)
-                if (not ok):
-                    self.statusBar().showMessage('Save cancelled', 2000)
-                    return
+                if not clobber:
+                    # The use has responded to not overwrite, we must now ask for a new filename
+                    ok = False
+                    erromsg = ""
+                    # This loop continues until an acceptable filename is entered, or the user presses cancel
+                    while not ok:
+                        _inp, ok = QInputDialog.getText(self, "Saving file...", "{0}Enter name of a different output file:".format(erromsg),)
+                        if ok:
+                            try:
+                                self.ofile = str(_inp)
+                            except:
+                                ok = False
+                                erromsg = "File name not acceptable. "
+                            if os.path.exists(self.ofile):
+                                ok = False
+                                erromsg = "File exists. "
+                        else:
+                            self.ofile = None
+                            self.statusBar().showMessage('Save cancelled', 2000)
+                            return
+            
+            # To simplify creation of the output filename, i first duplicate the original file, then overwrite
+            # the kmt array.
+            nccopy(self.dc.fname, self.ofile, quiet=True, clobber=clobber, zlib=False, shuffle=False, classic=1)
 
-        # If all is well so far, we have an acceptable output filename and we can proceed with writing.
+            # now we set this to True, so that next time we save, we are not prompted about existing file
+            self.asked_about_overwrite_permission = True
 
-        # To simplify creation of the output filename, i first duplicate the original file, then overwrite
-        # the kmt array.
-        nccopy(self.dc.fname, ofile, quiet=True, clobber=True, zlib=False, shuffle=False, classic=1)
 
-        ncfile = Dataset(ofile, "a", format="NETCDF4")
-        ncfile.variables["kmt"][:,:] = np.flipud(self.dc.data)
+        ncfile = Dataset(self.ofile, "a", format="NETCDF4")
+        alldimensions = ncfile.dimensions
+        allvariables  = ncfile.variables
+        if not "changes" in alldimensions: ncfile.createDimension("changes", None)
+        if not "i" in alldimensions: ncfile.createDimension("i", 3)
+
+
+        if not "original_kmt" in allvariables: 
+            okmt   = ncfile.createVariable("original_kmt", "f4", ("latitude", "longitude"))
+            okmt.description   = "Original KMT data from which this file was created by KMTEditor.py"
+            okmt[:,:]          = np.flipud(self.dc.orig_data)
+
+        if not "changes" in allvariables: 
+            cngvar = ncfile.createVariable("changes", "f8", ("changes", "i"))
+            cngvar.description = "changes to original data leading to present data. (i,j,val)"        
+            cngvar[:,:]        = self.dc.changes[0:self.dc.changes_row_idx,:]
+        else:
+            cngvar = allvariables["changes"]
+            # s = cngvar.shape[0]
+            cngvar[:,:]       = self.dc.changes[0:self.dc.changes_row_idx,:]
+        
+
+        kmtvar             = ncfile.variables["kmt"]
+        kmtvar[:,:]        = np.flipud(self.dc.data)
+        kmtvar.description = "Created by KMTEditor.py"
+        
+        ncfile.history     = "Created by KMTEditor.py"
+        ncfile.input_file  = self.dc.fname
+        ncfile.created     = time.ctime()
         ncfile.close()
+
         self.unsaved_changes_exist = False
-        self.statusBar().showMessage('Saved to file: %s' % ofile, 2000)
+        self.statusBar().showMessage('Saved to file: %s' % self.ofile, 2000)
 
 
 
